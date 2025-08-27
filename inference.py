@@ -20,8 +20,9 @@ from utils.common import instantiate_from_config, load_state_dict
 from utils.file import list_image_files, get_file_name_parts
 
 # ⬇️ 引入：ERP 水平环绕卷积替换
-from utils.erp_wrap import enable_horizontal_circular_padding
-
+# from utils.erp_wrap import enable_horizontal_circular_padding
+from utils.feature_hwrap import enable_feature_hwrap
+import torch.nn.functional as F
 
 @torch.no_grad()
 def process(
@@ -32,6 +33,7 @@ def process(
         stream_path: str,
         guidance_scale: float,
         c_crossattn: List[torch.Tensor],
+        extra_hwrap_px: int = 1,
 ) -> Tuple[List[np.ndarray], float]:
     """
     Apply RDEIC model on a list of images.
@@ -54,6 +56,8 @@ def process(
         sampler = DDIMSampler(model)
     control = torch.tensor(np.stack(imgs) / 255.0, dtype=torch.float32, device=model.device).clamp_(0, 1)
     control = einops.rearrange(control, "n h w c -> n c h w").contiguous()
+    k = max(1, int(extra_hwrap_px))
+    control = F.pad(control, (k, k, 0, 0), mode="circular")
 
     height, width = control.size(-2), control.size(-1)
     bpp = model.apply_condition_compress(control, stream_path, height, width)
@@ -110,8 +114,9 @@ def parse_args() -> Namespace:
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
 
     # ⬇️ 新增：ERP 环绕卷积开关（1/0），默认启用且只替换 3×3
-    parser.add_argument("--erp_wrap", type=int, default=1, help="enable horizontal circular padding conv (1/0)")
-    parser.add_argument("--erp_only_3x3", type=int, default=1, help="only replace 3x3 convs (1/0)")
+    parser.add_argument("--erp_wrap", type=int, default=1, help="enable feature-level wrap before conv (1/0)")
+    parser.add_argument("--erp_only_3x3", type=int, default=1, help="only wrap 3x3 convs (1/0)")
+    parser.add_argument("--extra_hwrap_px", type=int, default=1, help="extra horizontal wrap pixels on input (>=1)")
     return parser.parse_args()
 
 
@@ -127,9 +132,8 @@ def main() -> None:
 
     # ⬇️ 启用 ERP 环绕卷积（在加载权重前开启或之后都可）
     if bool(args.erp_wrap):
-        replaced = enable_horizontal_circular_padding(model, only_3x3=bool(args.erp_only_3x3))
-        print(f"[ERP] Horizontal-circular padding enabled: replaced {replaced} Conv2d "
-              f"(only_3x3={bool(args.erp_only_3x3)})")
+        replaced = enable_feature_hwrap(model,only_3x3=bool(args.erp_only_3x3),v_mode="constant", v_value=0.0)
+        print(f"[HFeaturePad] replaced {replaced} Conv2d (only_3x3={bool(args.erp_only_3x3)})")
 
     # 加载权重
     load_state_dict(model, torch.load(args.ckpt, map_location="cpu"), strict=True)
@@ -159,8 +163,7 @@ def main() -> None:
         os.makedirs(stream_parent_path, exist_ok=True)
 
         preds, bpp = process(
-            model, [x], steps=args.steps, sampler=args.sampler,
-            stream_path=stream_path, guidance_scale=args.guidance_scale, c_crossattn=c_crossattn
+            model, [x], steps=args.steps, sampler=args.sampler,stream_path=stream_path, guidance_scale=args.guidance_scale,c_crossattn=c_crossattn, extra_hwrap_px=args.extra_hwrap_px
         )
         pred = preds[0]
 

@@ -7,7 +7,8 @@ import torch
 
 from utils.common import instantiate_from_config, load_state_dict
 # ERP：横向环绕卷积启用工具（我们在 utils/erp_wrap.py 里已实现）
-from utils.erp_wrap import enable_horizontal_circular_padding
+# from utils.erp_wrap import enable_horizontal_circular_padding
+from utils.feature_hwrap import enable_feature_hwrap
 
 
 def parse_erp_cfg(model_cfg):
@@ -70,14 +71,13 @@ def main() -> None:
     # 在加载完权重后再做替换：from_conv 会复制已有权重到新模块
     erp_params = parse_erp_cfg(config.model)
     if erp_params["enable"]:
-        replaced = enable_horizontal_circular_padding(
+        replaced = enable_feature_hwrap(
             model,
-            only_3x3=erp_params["only_3x3"],
-            v_mode=erp_params["v_mode"],
-            v_value=erp_params["v_value"],
+            only_3x3=erp_params.get("only_3x3", True),
+            v_mode=erp_params.get("v_mode", "constant"),  # SMGD 风格
+            v_value=erp_params.get("v_value", 0.0),
         )
-        print(f"[ERP] Horizontal-circular padding enabled: replaced {replaced} Conv2d "
-              f"(only_3x3={erp_params['only_3x3']}, v_mode='{erp_params['v_mode']}').")
+        print(f"[HFeaturePad] replaced {replaced} Conv2d (feature-level wrap)")
     else:
         print("[ERP] Horizontal-circular padding disabled.")
 

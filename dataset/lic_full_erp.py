@@ -7,13 +7,12 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
 
-from utils.file import load_file_list  # 作者提供的工具
+from utils.file import load_file_list
 
 def _as_rgb(img: Image.Image) -> Image.Image:
     return img if img.mode == "RGB" else img.convert("RGB")
 
 def _to_tensor_norm(img: Image.Image) -> torch.Tensor:
-    # [0,1] -> [-1,1]，与 SD/RDEIC 习惯一致
     t = TF.to_tensor(img)
     return t * 2.0 - 1.0
 
@@ -31,12 +30,32 @@ def _resize_keep_ar_to_long(img: Image.Image, long_edge: Optional[int]) -> Image
 def _ceil_mul(x: int, m: int) -> int:
     return int(math.ceil(x / float(m)) * m)
 
-def _pad_to_multiple(x: torch.Tensor, multiple: int,
-                     v_mode: str = "reflect", v_value: float = 0.0) -> torch.Tensor:
+def _random_hroll(x: torch.Tensor, max_shift: Optional[int] = None) -> torch.Tensor:
+    if x.dim() != 4:
+        return x
+    W = x.size(-1)
+    if W <= 1:
+        return x
+    if not max_shift or max_shift <= 0 or max_shift > W - 1:
+        max_shift = W - 1
+    shifts = torch.randint(0, max_shift + 1, (x.size(0),), device=x.device)
+    return torch.stack([torch.roll(x[i], int(shifts[i]), dims=-1) for i in range(x.size(0))], dim=0)
+
+def _extra_hwrap(x: torch.Tensor, k: int) -> torch.Tensor:
+    """无条件像素级水平环绕：左右各加 k 列（circular）。"""
+    k = int(max(1, k))  # 至少 1
+    return F.pad(x, (k, k, 0, 0), mode="circular")
+
+def _pad_to_multiple(
+    x: torch.Tensor,
+    multiple: int,
+    v_mode: str = "reflect",
+    v_value: float = 0.0
+) -> torch.Tensor:
     """
     把 (N,C,H,W) pad 到 multiple 的倍数：
-      - 纵向：reflect/replicate/constant（极区更稳）
-      - 横向：circular（经度无缝）
+      - 纵向：reflect/replicate/constant
+      - 横向：circular
     """
     n, c, h, w = x.shape
     th = _ceil_mul(h, multiple)
@@ -60,25 +79,9 @@ def _pad_to_multiple(x: torch.Tensor, multiple: int,
 
     return x
 
-def _random_hroll(x: torch.Tensor, max_shift: Optional[int] = None) -> torch.Tensor:
-    if x.dim() != 4:
-        return x
-    W = x.size(-1)
-    if W <= 1:
-        return x
-    if not max_shift or max_shift <= 0 or max_shift > W - 1:
-        max_shift = W - 1
-    shifts = torch.randint(0, max_shift + 1, (x.size(0),), device=x.device)
-    return torch.stack([torch.roll(x[i], int(shifts[i]), dims=-1) for i in range(x.size(0))], dim=0)
-
 class LICFullERPDataset(Dataset):
     """
-    整幅 ERP，不裁剪：
-      1) 可选长边等比缩放（控制显存）
-      2) pad 到 multiple（默认 64）的倍数：
-         - 纵向 reflect/replicate/constant
-         - 横向 circular
-      3) 可选训练期随机水平 roll（增强经度平移不变性）
+    流程：等比缩放 → (可选)随机水平滚动 → **无条件像素级环绕列** → pad到64倍数
     返回：{'image': tensor[-1,1], 'path': str}
     """
     def __init__(self,
@@ -87,7 +90,9 @@ class LICFullERPDataset(Dataset):
                  multiple: int = 64,
                  vertical_pad_mode: str = "reflect",
                  vertical_pad_value: float = 0.0,
-                 random_roll: bool = False):
+                 random_roll: bool = False,
+                 random_roll_max: Optional[int] = None,
+                 extra_hwrap_px: int = 1):
         super().__init__()
         self.paths: List[str] = load_file_list(file_list)
         self.long_edge = long_edge
@@ -95,6 +100,8 @@ class LICFullERPDataset(Dataset):
         self.v_mode = vertical_pad_mode
         self.v_value = vertical_pad_value
         self.random_roll = random_roll
+        self.random_roll_max = random_roll_max
+        self.extra_hwrap_px = int(max(1, extra_hwrap_px))
 
     def __len__(self):
         return len(self.paths)
@@ -104,9 +111,17 @@ class LICFullERPDataset(Dataset):
         img = _as_rgb(Image.open(path))
         img = _resize_keep_ar_to_long(img, self.long_edge)
 
-        x = _to_tensor_norm(img).unsqueeze(0)              # (1,C,H,W)
-        x = _pad_to_multiple(x, self.multiple, self.v_mode, self.v_value)
+        x = _to_tensor_norm(img).unsqueeze(0)  # (1,C,H,W)
+
+        # 先做水平随机滚动（像素级）
         if self.random_roll:
-            x = _random_hroll(x)                           # 仅训练集建议打开
-        x = x.squeeze(0)                                   # (C,H',W')
+            x = _random_hroll(x, self.random_roll_max)
+
+        # 无条件像素级环绕列（左右各 extra_hwrap_px 列）
+        x = _extra_hwrap(x, self.extra_hwrap_px)
+
+        # 再 pad 到 multiple 的倍数
+        x = _pad_to_multiple(x, self.multiple, self.v_mode, self.v_value)
+
+        x = x.squeeze(0)
         return {"image": x, "path": path}

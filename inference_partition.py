@@ -19,7 +19,9 @@ from utils.common import instantiate_from_config, load_state_dict
 from utils.file import list_image_files, get_file_name_parts
 
 # ⬇️ 引入：ERP 水平环绕卷积替换
-from utils.erp_wrap import enable_horizontal_circular_padding
+# from utils.erp_wrap import enable_horizontal_circular_padding
+from utils.feature_hwrap import enable_feature_hwrap
+import torch.nn.functional as F
 
 
 @torch.no_grad()
@@ -31,6 +33,7 @@ def process(
         stream_path: str,
         guidance_scale: float,
         c_crossattn: List[torch.Tensor],
+        extra_hwrap_px: int = 1,
 ) -> Tuple[List[np.ndarray], float]:
     n_samples = len(imgs)
     if sampler == "ddpm":
@@ -39,6 +42,8 @@ def process(
         sampler = DDIMSampler(model)
     control = torch.tensor(np.stack(imgs) / 255.0, dtype=torch.float32, device=model.device).clamp_(0, 1)
     control = einops.rearrange(control, "n h w c -> n c h w").contiguous()
+    k = max(1, int(extra_hwrap_px))
+    control = F.pad(control, (k, k, 0, 0), mode="circular")
 
     height, width = control.size(-2), control.size(-1)
     bpp = model.apply_condition_compress(control, stream_path, height, width)
@@ -94,6 +99,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
     parser.add_argument("--erp_wrap", type=int, default=1)
     parser.add_argument("--erp_only_3x3", type=int, default=1)
+    parser.add_argument("--extra_hwrap_px", type=int, default=1)
     return parser.parse_args()
 
 
@@ -107,9 +113,8 @@ def main() -> None:
     model: RDEIC = instantiate_from_config(OmegaConf.load(args.config))
 
     if bool(args.erp_wrap):
-        replaced = enable_horizontal_circular_padding(model, only_3x3=bool(args.erp_only_3x3))
-        print(f"[ERP] Horizontal-circular padding enabled: replaced {replaced} Conv2d "
-              f"(only_3x3={bool(args.erp_only_3x3)})")
+        replaced = enable_feature_hwrap(model, only_3x3=True, v_mode="constant", v_value=0.0)
+        print(f"[HFeaturePad] replaced {replaced} Conv2d (feature-level wrap)")
 
     ckpt_sd = torch.load(args.ckpt_sd, map_location="cpu")['state_dict']
     ckpt_lc = torch.load(args.ckpt_cc, map_location="cpu")['state_dict']
@@ -144,7 +149,7 @@ def main() -> None:
 
         preds, bpp = process(
             model, [x], steps=args.steps, sampler=args.sampler,
-            stream_path=stream_path, guidance_scale=args.guidance_scale, c_crossattn=c_crossattn
+            stream_path=stream_path, guidance_scale=args.guidance_scale,c_crossattn=c_crossattn, extra_hwrap_px=args.extra_hwrap_px
         )
         pred = preds[0]
         bpps.append(bpp)

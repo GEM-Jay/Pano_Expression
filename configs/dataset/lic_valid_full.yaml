@@ -1,12 +1,13 @@
 dataset:
   target: dataset.lic_full_erp.LICFullERPDataset
   params:
-    file_list: ./datalists/valid.list
-    long_edge: 1024
+    file_list: datalists/valid.list
+    long_edge: 1536
     multiple: 64
-    vertical_pad_mode: reflect
+    vertical_pad_mode: constant
     vertical_pad_value: 0.0
     random_roll: false
+    extra_hwrap_px: 1      # 验证尽量保守：1 列
 
 data_loader:
   batch_size: 1
