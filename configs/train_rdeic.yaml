@@ -1,0 +1,46 @@
+data:
+  target: dataset.data_module.DataModule
+  params:
+    # ↓↓↓ 改成不裁剪版本
+    train_config: ./configs/dataset/lic_train_full.yaml
+    val_config:   ./configs/dataset/lic_valid_full.yaml
+
+model:
+  config: ./configs/model/rdeic.yaml
+  erp_wrap:
+    enable: true
+    only_3x3: true
+    # 可不写：train.py 默认 v_mode=reflect、v_value=0.0
+    # v_mode: reflect    # reflect | replicate | constant
+    # v_value: 0.0
+
+  resume: ~
+
+lightning:
+  seed: 231
+
+  trainer:
+    accelerator: cuda
+    devices: 1
+    precision: 16
+    default_root_dir: ./logs/independent/2_2_002
+    max_steps: 100000
+    check_val_every_n_epoch: 5
+    log_every_n_steps: 200
+    accumulate_grad_batches: 1
+    num_sanity_val_steps: 0
+
+  callbacks:
+    - target: model.callbacks.ImageLogger
+      params:
+        log_every_n_steps: 500
+        log_start_step: 0
+        max_images_each_step: 2
+        log_images_kwargs: ~
+
+    - target: model.callbacks.ModelCheckpoint
+      params:
+        monitor: "avg_lpips"
+        mode: "min"
+        save_top_k: 3
+        filename: "ep{epoch:02d}-st{step:06d}-lpips{avg_lpips:.4f}"

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="930788a5-f87c-4bfc-9763-4a76f7a62758" name="docker">
+        <fileTransfer accessType="SFTP" host="cuda" port="58623" sshConfigId="4433628f-1355-4253-b9b4-31054804c520" sshConfig="root@cuda:58623 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
