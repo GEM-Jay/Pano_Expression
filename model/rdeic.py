@@ -3,10 +3,9 @@
 RDEIC (seam aligned, band-free)
 
 要点：
-- latent：取消 latent 侧融合，仅做相位对齐（seam→col0）与 UNet 水平环绕卷积；
+- latent：取消 latent 侧融合；去噪阶段**不再 roll**，而是 **每一步在右侧拼尾** 给 UNet 跨缝上下文；
 - VAE 解码：latent 右侧扩边(≈Wz/4)→瓦片解码→横向 feather；像素域环向融合时 **只写回左带 [0:K]**，
   参考带来自 **扩充区 [W0:W0+K]**；不碰右侧 [W0-K:W0] 与扩边尾巴，规避多余条带/亮带；
-- 去噪阶段：x_noisy 与 guide_hint **同步 roll** 到 seam 对齐相位，前向结束**立刻回卷**，保证采样相位不漂移；
 - 解码阶段：按上法处理后**回卷到原相位**（必做）；验证时在像素融合前落一张 *_ali.png（未融合、带冗余的中间图）。
 
 其它接口/名字保持不变。
@@ -561,6 +560,9 @@ class ResBlock(TimestepBlock):
 # ============================== RDEIC ==============================
 class RDEIC(LatentDiffusion):
 
+    # 去噪阶段 latent 拼尾尺度：W/TAIL_DEN
+    TAIL_DEN = 12  # 改为 16 即采用 1/16
+
     def __init__(self,
                  control_stage_config: Mapping[str, Any],
                  sd_locked: bool,
@@ -673,6 +675,13 @@ class RDEIC(LatentDiffusion):
             x = (x + 1) / 2
         x = x.clamp(0, 1).permute(1, 2, 0).numpy()
         return (x * 255.0 + 0.5).astype(np.uint8)
+
+    @staticmethod
+    def _wrap_tail_lat(x: torch.Tensor, k_lat: int) -> torch.Tensor:
+        # x: [B,C,H,W] ; 右侧拼接 k_lat 列
+        if k_lat <= 0:
+            return x
+        return torch.cat([x, x[..., :k_lat]], dim=-1)
 
     # =================== 像素域融合（只写回左带 [0:K]；参考带取扩充区 [W0:W0+K]） ===================
     @staticmethod
@@ -874,48 +883,37 @@ class RDEIC(LatentDiffusion):
                        guide_hint=guide_hint, target=target, orig_size=torch.tensor([H, W], device=target.device),
                        hshift_pix=hshift)
 
-    # —— 每个去噪步：seam 对齐（x_noisy & guide_hint 同步 roll）→ 模型 → 立刻回卷（不让相位漂移）
+    # —— 每个去噪步：不再 roll；改为先在右侧拼尾再送入 UNet，输出再裁回原宽
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):
         diffusion_model = self.model.diffusion_model
         cond_txt = torch.cat(cond['c_crossattn'], 1)
         guide_hint = cond['guide_hint']
 
-        hshift_pix = int(cond.get('hshift_pix', torch.tensor(0)).item())
-        scale = int(getattr(self, 'first_stage_downsample', 8))
-        r_lat = int(round(hshift_pix / float(scale)))
+        W = x_noisy.shape[-1]
+        K_lat = max(1, W // int(self.TAIL_DEN))  # W/12 或 W/16
 
-        guide_hint_local = guide_hint
-        if self.is_refine and (r_lat % x_noisy.shape[-1]) != 0:
-            x_noisy = torch.roll(x_noisy, shifts=(-r_lat), dims=-1)
-            guide_hint_local = torch.roll(guide_hint, shifts=(-r_lat), dims=-1)
+        x_wrap = self._wrap_tail_lat(x_noisy, K_lat)
+        hint_wrap = self._wrap_tail_lat(guide_hint, K_lat)
 
-        eps = self.control_model(
-            x=x_noisy, timesteps=t, context=cond_txt,
-            guide_hint=guide_hint_local, base_model=diffusion_model
+        eps_wrap = self.control_model(
+            x=x_wrap, timesteps=t, context=cond_txt,
+            guide_hint=hint_wrap, base_model=diffusion_model
         )
-
-        if self.is_refine and (r_lat % eps.shape[-1]) != 0:
-            eps = torch.roll(eps, shifts=(+r_lat), dims=-1)
-
+        eps = eps_wrap[..., :W]  # 裁回原宽，保持采样器状态维度不变
         return eps
 
     def apply_model_unconditional(self, x_noisy, t, cond, *args, **kwargs):
         diffusion_model = self.model.diffusion_model
         cond_txt = torch.cat(cond['c_crossattn'], 1)
 
-        hshift_pix = int(cond.get('hshift_pix', torch.tensor(0)).item())
-        scale = int(getattr(self, 'first_stage_downsample', 8))
-        r_lat = int(round(hshift_pix / float(scale)))
-        if self.is_refine and (r_lat % x_noisy.shape[-1]) != 0:
-            x_noisy = torch.roll(x_noisy, shifts=(-r_lat), dims=-1)
+        W = x_noisy.shape[-1]
+        K_lat = max(1, W // int(self.TAIL_DEN))
 
-        eps = self.control_model.forward_unconditional(
-            x=x_noisy, timesteps=t, context=cond_txt, base_model=diffusion_model
+        x_wrap = self._wrap_tail_lat(x_noisy, K_lat)
+        eps_wrap = self.control_model.forward_unconditional(
+            x=x_wrap, timesteps=t, context=cond_txt, base_model=diffusion_model
         )
-
-        if self.is_refine and (r_lat % eps.shape[-1]) != 0:
-            eps = torch.roll(eps, shifts=(+r_lat), dims=-1)
-
+        eps = eps_wrap[..., :W]
         return eps
 
     @torch.no_grad()
