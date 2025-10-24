@@ -1,46 +1,50 @@
+#configs/train_rdeic.yaml
 data:
   target: dataset.data_module.DataModule
   params:
-    # ↓↓↓ 改成不裁剪版本
-    train_config: ./configs/dataset/lic_train_full.yaml
-    val_config:   ./configs/dataset/lic_valid_full.yaml
+    # 训练配置代码
+    train_config: ./configs/dataset/lic_train.yaml
+    # 评估配置代码
+    val_config: ./configs/dataset/lic_valid.yaml
 
 model:
   config: ./configs/model/rdeic.yaml
-  erp_wrap:
-    enable: true
-    only_3x3: true
-    # 可不写：train.py 默认 v_mode=reflect、v_value=0.0
-    # v_mode: reflect    # reflect | replicate | constant
-    # v_value: 0.0
-
-  resume: ~
+   # 启动二阶段的检查点，一阶段设为 "~"
+  resume: /opt/dev/RDEIC-main/logs/independent/2_1/lightning_logs/version_0/checkpoints/step=99999.ckpt
+  params:
+    val_eval_metrics: true   # ← 开启验证指标计算
+    val_sample_steps: 5
 
 lightning:
   seed: 231
-
+  
   trainer:
-    accelerator: cuda
-    devices: 1
+    accelerator: gpu
+    devices: [0]
     precision: 16
-    default_root_dir: ./logs/independent/2_2_002
-    max_steps: 100000
-    check_val_every_n_epoch: 5
+    default_root_dir: ./logs/independent/2_2_5
+    max_epochs: 140
+    check_val_every_n_epoch: 1
     log_every_n_steps: 200
     accumulate_grad_batches: 1
-    num_sanity_val_steps: 0
-
+  
   callbacks:
     - target: model.callbacks.ImageLogger
       params:
-        log_every_n_steps: 500
+        log_every_n_steps: 1000
         log_start_step: 0
         max_images_each_step: 2
         log_images_kwargs: ~
 
+    # 用“综合分 = PSNR - 5×LPIPS”保存表现 Top-5 的模型
+    # 如果更想用 PSNR：把 monitor 改为 "val/psnr"，mode 改为 "max"，filename 里字段也改下
     - target: model.callbacks.ModelCheckpoint
       params:
-        monitor: "avg_lpips"
-        mode: "min"
-        save_top_k: 3
-        filename: "ep{epoch:02d}-st{step:06d}-lpips{avg_lpips:.4f}"
+         monitor: "val/score_combo"
+         mode: "max"
+         save_top_k: 5
+         save_last: true
+         auto_insert_metric_name: false
+         filename: "ep{epoch:03d}-gs{global_step}-combo{val_score_combo:.3f}"
+         every_n_epochs: 1         # 仅在验证后基于指标保存
+

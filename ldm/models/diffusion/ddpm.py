@@ -358,7 +358,7 @@ class DDPM(pl.LightningModule, ImageLoggerMixin):
         noise = default(noise, lambda: torch.randn_like(x_start))
         return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
                 extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise)
-    
+
     def q_sample_bias(self, x_start, t, sigma=0, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
         sqrt_alphas_cumprod = extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape)
@@ -842,7 +842,7 @@ class LatentDiffusion(DDPM):
 
         z = 1. / self.scale_factor * z
         return self.first_stage_model.decode(z)
-    
+
     # 2023-04-08
     def decode_first_stage_with_grad(self, z, predict_cids=False, force_not_quantize=False):
         if predict_cids:
@@ -857,7 +857,7 @@ class LatentDiffusion(DDPM):
     @torch.no_grad()
     def encode_first_stage(self, x):
         return self.first_stage_model.encode_hc(x)
-    
+
     # @torch.no_grad()
     # def encode_first_stage(self, x):
     #     return self.first_stage_model.encode(x)
@@ -898,7 +898,7 @@ class LatentDiffusion(DDPM):
     def _predict_eps_from_xstart(self, x_t, t, pred_xstart):
         return (extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - pred_xstart) / \
                extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
-    
+
     def _predict_xstart_from_eps(self, x_t, t, eps):
         return extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - \
                extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * eps

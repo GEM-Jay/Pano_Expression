@@ -106,23 +106,25 @@ def augment(imgs, hflip=True, rotation=True, flows=None, return_status=False):
 
     def _augment(img):
         if hflip:  # horizontal
-            cv2.flip(img, 1, img)
+            img = cv2.flip(img, 1)  # ← 不再原地
         if vflip:  # vertical
-            cv2.flip(img, 0, img)
+            img = cv2.flip(img, 0)  # ← 不再原地
         if rot90:
             img = img.transpose(1, 0, 2)
+            img = np.ascontiguousarray(img)  # ← 确保后续若再用 OpenCV 不会报错
         return img
 
     def _augment_flow(flow):
-        if hflip:  # horizontal
-            cv2.flip(flow, 1, flow)
+        if hflip:
+            flow = cv2.flip(flow, 1)
             flow[:, :, 0] *= -1
-        if vflip:  # vertical
-            cv2.flip(flow, 0, flow)
+        if vflip:
+            flow = cv2.flip(flow, 0)
             flow[:, :, 1] *= -1
         if rot90:
             flow = flow.transpose(1, 0, 2)
             flow = flow[:, :, [1, 0]]
+            flow = np.ascontiguousarray(flow)
         return flow
 
     if not isinstance(imgs, list):

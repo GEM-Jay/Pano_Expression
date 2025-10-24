@@ -1,5 +1,5 @@
 # dataset/data_module.py
-from typing import Any, Tuple, Mapping, Optional
+from typing import Any, Tuple, Mapping
 
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 import pytorch_lightning as pl
@@ -11,21 +11,17 @@ from dataset.batch_transform import BatchTransform, IdentityBatchTransform
 
 
 class DataModule(pl.LightningDataModule):
-
+    
     def __init__(
-            self,
-            train_config: str,
-            val_config: str = None
+        self,
+        train_config: str,
+        val_config: str=None
     ) -> "DataModule":
         super().__init__()
         self.train_config = OmegaConf.load(train_config)
         self.val_config = OmegaConf.load(val_config) if val_config else None
-
-        # 防止属性未定义
-        self.train_dataset: Optional[Dataset] = None
-        self.val_dataset: Optional[Dataset] = None
-        self.train_batch_transform: BatchTransform = IdentityBatchTransform()
-        self.val_batch_transform: BatchTransform = IdentityBatchTransform()
+        self.train_batch_size = None
+        self.val_batch_size = None
 
     def load_dataset(self, config: Mapping[str, Any]) -> Tuple[Dataset, BatchTransform]:
         dataset = instantiate_from_config(config["dataset"])
@@ -35,21 +31,18 @@ class DataModule(pl.LightningDataModule):
         )
         return dataset, batch_transform
 
-    def setup(self, stage: Optional[str] = None) -> None:
-        # Lightning 可能传入 None / 'fit' / 'validate'
+    def setup(self, stage: str) -> None:
         if stage in (None, "fit", "validate"):
             self.train_dataset, self.train_batch_transform = self.load_dataset(self.train_config)
+            self.train_batch_size = int(self.train_config["data_loader"].get("batch_size", 1))  # ★
             if self.val_config:
                 self.val_dataset, self.val_batch_transform = self.load_dataset(self.val_config)
+                self.val_batch_size = int(self.val_config["data_loader"].get("batch_size", 1))  # ★
             else:
                 self.val_dataset, self.val_batch_transform = None, None
-
-            # 打印放在加载完成之后
-            print("[DataModule] train:", type(self.train_dataset).__name__,
-                  "val:", type(self.val_dataset).__name__ if self.val_dataset is not None else None)
+                self.val_batch_size = None
         else:
-            # 其余阶段暂未实现
-            raise NotImplementedError(stage)
+            pass
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(
@@ -65,6 +58,7 @@ class DataModule(pl.LightningDataModule):
 
     def on_after_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
         self.trainer: pl.Trainer
+        
         if self.trainer.training:
             return self.train_batch_transform(batch)
         elif self.trainer.validating or self.trainer.sanity_checking:

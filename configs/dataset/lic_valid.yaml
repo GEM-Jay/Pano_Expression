@@ -1,18 +1,23 @@
+#configs/dataset/lic_valid.yaml
 dataset:
   target: dataset.licdataset.LICDataset
   params:
-    # Path to the file list.
     file_list: ./datalists/valid.list
-    out_size: 512
-    crop_type: none
+    out_size: 0
+    crop_type: "none"
     use_hflip: False
     use_rot: False
+    resize_cfg:            # 与训练集统一，避免分布偏移
+      enabled: true
+      target_w: 2048        # 与训练配置一致
 
 data_loader:
   batch_size: 1
+  num_workers: 4
   shuffle: false
-  num_workers: 0
-  drop_last: true
+  drop_last: false
+  pin_memory: true
 
 batch_transform:
   target: dataset.batch_transform.IdentityBatchTransform
+  params: {}

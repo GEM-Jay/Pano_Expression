@@ -1,108 +1,156 @@
 # utils/feature_hwrap.py
-from typing import Tuple
-import math
+# 作用：仅当 UNet 的 ResBlock 前两层 3×3 卷积计算到“需要水平 padding”的位置时，
+#      用对侧像素进行水平环绕补齐；其余位置严格保持与原实现一致（垂直仍为零）。
+# 特点：不改权重/形状/分辨率；仅影响边界带；中心区域数值做一次 allclose 自检，异常即回退。
+
+import os
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
-def _same_pad_1d(L: int, k: int, s: int, d: int) -> Tuple[int, int]:
-    k_eff = d * (k - 1) + 1
-    out = math.ceil(L / s)
-    total = max((out - 1) * s + k_eff - L, 0)
-    left = total // 2
-    right = total - left
-    return left, right
+try:
+    from ldm.modules.diffusionmodules.openaimodel import ResBlock  # LDM 的 ResBlock
+except Exception:
+    ResBlock = None
 
-class HFeaturePad(nn.Module):
+_HWRAP_DEBUG = os.getenv("HWRAP_DEBUG", "0") == "1"
+_checked_once = False  # 仅首次运行做自检
+
+
+def _conv_hwrap_edges_generic(conv: nn.Conv2d, x: torch.Tensor) -> torch.Tensor:
     """
-    特征图级“前置环绕”：
-      - 垂直：reflect / replicate / constant（按原 conv 的 padding 需求或 SAME/VALID 语义）
-      - 水平：circular（按原 conv 的 padding 需求）
-    注意：这里不做“额外比原需求更多的列”，以保持各层尺寸与原网络一致。
+    仅覆盖“水平边界带”，带宽 p_w = conv.padding[1]；中心区域严格等价原实现。
+    要求：conv 为 3x3, stride=1, dilation=1（由调用方保证）。
     """
-    def __init__(self, conv: nn.Conv2d, v_mode: str = "constant", v_value: float = 0.0):
-        super().__init__()
-        self.v_mode = v_mode.lower()
-        self.v_value = float(v_value)
-        self._kernel_size = conv.kernel_size if isinstance(conv.kernel_size, tuple) else (conv.kernel_size, conv.kernel_size)
-        self._stride = conv.stride if isinstance(conv.stride, tuple) else (conv.stride, conv.stride)
-        self._dilation = conv.dilation if isinstance(conv.dilation, tuple) else (conv.dilation, conv.dilation)
-        self._orig_padding = conv.padding  # int/tuple or "same"/"valid"
+    # 原始零填充输出（绕过外层 patch，避免递归）
+    out_zero = conv.__class__.forward(conv, x)  # [B, C_out, H, W]
+    B, _, H, W = out_zero.shape
 
-    def _needed_pad(self, x):
-        H = x.size(-2); W = x.size(-1)
-        kh, kw = self._kernel_size
-        sh, sw = self._stride
-        dh, dw = self._dilation
-        if isinstance(self._orig_padding, str):
-            pad_str = self._orig_padding.lower()
-            if pad_str == "same":
-                t, b = _same_pad_1d(H, kh, sh, dh)
-                l, r = _same_pad_1d(W, kw, sw, dw)
-            elif pad_str == "valid":
-                t = b = l = r = 0
-            else:
-                raise ValueError(f"Unsupported padding string: {self._orig_padding}")
-        else:
-            pad = self._orig_padding if isinstance(self._orig_padding, tuple) else (self._orig_padding, self._orig_padding)
-            t = b = int(pad[0])  # 对称
-            l = r = int(pad[1])
-        return t, b, l, r
+    # 读取 padding
+    pad = conv.padding if isinstance(conv.padding, tuple) else (conv.padding, conv.padding)
+    p_h, p_w = int(pad[0]), int(pad[1])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        t, b, l, r = self._needed_pad(x)
-        # 垂直 pad
-        if t or b:
-            if self.v_mode == "constant":
-                x = F.pad(x, (0, 0, t, b), mode="constant", value=self.v_value)
-            elif self.v_mode in ("reflect", "replicate"):
-                x = F.pad(x, (0, 0, t, b), mode=self.v_mode)
-            else:
-                raise ValueError(f"Unsupported vertical pad mode: {self.v_mode}")
-        # 水平 circular
-        if l or r:
-            x = F.pad(x, (l, r, 0, 0), mode="circular")
-        return x
+    # 无水平 padding 或宽度过小，直接返回
+    if p_w <= 0 or W <= 2 * p_w:
+        return out_zero
 
-def _clone_conv_no_pad(conv: nn.Conv2d) -> nn.Conv2d:
-    k = conv.kernel_size if isinstance(conv.kernel_size, tuple) else (conv.kernel_size, conv.kernel_size)
-    new = nn.Conv2d(
-        in_channels=conv.in_channels,
-        out_channels=conv.out_channels,
-        kernel_size=k,
-        stride=conv.stride,
-        padding=0,  # 关键：移除内置 padding，由 HFeaturePad 负责边界
-        dilation=conv.dilation,
-        groups=conv.groups,
-        bias=(conv.bias is not None),
-        padding_mode="zeros",
-        device=conv.weight.device,
-        dtype=conv.weight.dtype,
+    # 构造“水平环绕 + 垂直零”的输入 → 用 padding=0 做等价卷积
+    Hpad, Wpad = H + 2 * p_h, W + 2 * p_w
+    x_pad = x.new_zeros((x.shape[0], x.shape[1], Hpad, Wpad))
+    x_pad[:, :, p_h:p_h + H, p_w:p_w + W] = x
+    # 水平环绕（仅中间有效行）
+    x_pad[:, :, p_h:p_h + H, :p_w] = x[:, :, :, W - p_w:]   # 左补最右
+    x_pad[:, :, p_h:p_h + H, -p_w:] = x[:, :, :, :p_w]      # 右补最左
+    # 垂直仍为零填充（极区不环绕）
+
+    out_circ = F.conv2d(
+        x_pad, conv.weight, conv.bias,
+        stride=conv.stride, padding=0,
+        dilation=conv.dilation, groups=conv.groups
     )
-    with torch.no_grad():
-        new.weight.copy_(conv.weight)
-        if conv.bias is not None:
-            new.bias.copy_(conv.bias)
-    return new
 
-def enable_feature_hwrap(model: nn.Module,
-                         only_3x3: bool = True,
-                         v_mode: str = "constant",
-                         v_value: float = 0.0) -> int:
-    """
-    遍历 model，将 Conv2d 替换为 (HFeaturePad -> 原 Conv, padding=0) 的顺序层。
-    默认仅替换 3x3（与常见 UNet 一致）。返回替换层数。
-    """
-    replaced = 0
-    for name, child in list(model.named_children()):
-        replaced += enable_feature_hwrap(child, only_3x3, v_mode, v_value)
-        if isinstance(child, nn.Conv2d):
-            k = child.kernel_size if isinstance(child.kernel_size, tuple) else (child.kernel_size, child.kernel_size)
-            if (not only_3x3) or (k == (3, 3)):
-                seq = nn.Sequential(
-                    HFeaturePad(child, v_mode=v_mode, v_value=v_value),
-                    _clone_conv_no_pad(child)
-                )
-                setattr(model, name, seq)
-                replaced += 1
-    return replaced
+    # 中心区域自检：同时裁掉上下和左右 padding，确保中心块与零填充结果完全一致
+    global _checked_once
+    if not _checked_once:
+        same_shape = (out_circ.shape == out_zero.shape)
+        if (H - 2 * p_h) > 0 and (W - 2 * p_w) > 0:
+            center_equal = torch.allclose(
+                out_circ[..., p_h:H - p_h, p_w:W - p_w],
+                out_zero[..., p_h:H - p_h, p_w:W - p_w],
+                rtol=1e-5, atol=1e-6
+            )
+        else:
+            center_equal = True  # 无中心块可比，视为通过
+        if _HWRAP_DEBUG:
+            print(f"[feature_hwrap] shape_ok={same_shape}, center_equal={center_equal}, p_w={p_w}, p_h={p_h}")
+        if (not same_shape) or (not center_equal):
+            return out_zero  # 任何异常直接回退，防止副作用
+        _checked_once = True
+
+    # 仅覆盖水平边界带
+    out = out_zero.clone()
+    out[..., :p_w] = out_circ[..., :p_w]
+    out[..., -p_w:] = out_circ[..., -p_w:]
+    return out
+
+
+def _get_resblock_convs(rb: nn.Module):
+    """返回 LDM ResBlock 的两层 3×3 Conv2d：in_layers[-1], out_layers[-1]（若不存在返回 None）。"""
+    in_conv = out_conv = None
+    try:
+        if isinstance(getattr(rb, "in_layers", None), nn.Sequential) and isinstance(rb.in_layers[-1], nn.Conv2d):
+            in_conv = rb.in_layers[-1]
+    except Exception:
+        pass
+    try:
+        if isinstance(getattr(rb, "out_layers", None), nn.Sequential) and isinstance(rb.out_layers[-1], nn.Conv2d):
+            out_conv = rb.out_layers[-1]
+    except Exception:
+        pass
+    return in_conv, out_conv
+
+
+def _wrap_resblock_forward(rb: nn.Module):
+    """只给 ResBlock 的两层 3×3/stride=1/dilation=1 卷积加“边界限定水平环绕”补丁。"""
+    if getattr(rb, "_hwrap_patched", False):
+        return
+
+    orig_forward = rb.forward
+    in_conv, out_conv = _get_resblock_convs(rb)
+
+    def _wrap_fwd(conv: nn.Conv2d):
+        def _f(xx):
+            if (
+                isinstance(conv, nn.Conv2d)
+                and conv.kernel_size == (3, 3)
+                and conv.stride == (1, 1)
+                and conv.dilation == (1, 1)
+            ):
+                return _conv_hwrap_edges_generic(conv, xx)
+            # 其他卷积绕过补丁
+            return conv.__class__.forward(conv, xx)
+        return _f
+
+    def patched_forward(x, emb):
+        # 临时替换 forward，调用结束恢复
+        in_bak = getattr(in_conv, "forward", None) if in_conv is not None else None
+        out_bak = getattr(out_conv, "forward", None) if out_conv is not None else None
+        try:
+            if in_conv is not None:
+                in_conv.forward = _wrap_fwd(in_conv)
+            if out_conv is not None:
+                out_conv.forward = _wrap_fwd(out_conv)
+            return orig_forward(x, emb)
+        finally:
+            if in_conv is not None and in_bak is not None:
+                in_conv.forward = in_bak
+            if out_conv is not None and out_bak is not None:
+                out_conv.forward = out_bak
+
+    rb._hwrap_forward_orig = orig_forward
+    rb.forward = patched_forward
+    rb._hwrap_patched = True
+
+
+def enable_feature_hwrap_for_unet(unet_root: nn.Module, enabled: bool = True):
+    """遍历 UNet，启用所有 ResBlock 的边界限定水平环绕（仅前两层 3×3 生效）。"""
+    if not enabled or unet_root is None or ResBlock is None:
+        return
+    for _, m in unet_root.named_modules():
+        if isinstance(m, ResBlock):
+            _wrap_resblock_forward(m)
+
+
+def disable_feature_hwrap_for_unet(unet_root: nn.Module):
+    """恢复原行为（如需禁用）。"""
+    if unet_root is None or ResBlock is None:
+        return
+    for _, m in unet_root.named_modules():
+        if isinstance(m, ResBlock) and getattr(m, "_hwrap_patched", False):
+            try:
+                m.forward = m._hwrap_forward_orig
+            except Exception:
+                pass
+            m._hwrap_patched = False
+            if hasattr(m, "_hwrap_forward_orig"):
+                delattr(m, "_hwrap_forward_orig")

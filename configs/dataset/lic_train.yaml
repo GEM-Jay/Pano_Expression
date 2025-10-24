@@ -1,18 +1,26 @@
+#configs/dataset/lic_train.yaml
 dataset:
   target: dataset.licdataset.LICDataset
   params:
-    # Path to the file list.
     file_list: ./datalists/train.list
-    out_size: 256
-    crop_type: random
-    use_hflip: True
-    use_rot: False
-
-data_loader:
-  batch_size: 4
-  shuffle: true
-  num_workers: 8
-  drop_last: true
+    out_size: 0            # 不裁剪整图
+    crop_type: "none"
+    use_hflip: False       # ERP 不做水平翻转
+    use_rot: False         # ERP 不旋转
+    resize_cfg:
+      enabled: true
+      target_w: 512        # 与 valid 保持一致；显存允许可改为 768/1024/1536/2048（必须是 64 的倍数）
 
 batch_transform:
-  target: dataset.batch_transform.IdentityBatchTransform
+  target: dataset.batch_transform.RollHBatchTransform
+  params:
+    enabled: true
+    max_frac: 0.2          # 位移范围约 [-0.2W, +0.2W]
+    keys: ["jpg"]          # 只滚动输入图像；其余键保持不动
+
+data_loader:
+  batch_size: 2
+  num_workers: 8
+  shuffle: true
+  drop_last: true
+  pin_memory: true

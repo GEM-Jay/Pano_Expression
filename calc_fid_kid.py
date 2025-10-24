@@ -1,3 +1,4 @@
+# ./calc_fid_kid.py
 import torch, torchvision
 from pathlib import Path
 from PIL import Image
@@ -6,7 +7,7 @@ from torchmetrics.image.kid import KernelInceptionDistance
 
 # ---------------- 配置路径 ----------------
 real_dir = Path("./dataset/test")        # 真值
-fake_dir = Path("./output/rdeic_0.25_step2")     # 重建
+fake_dir = Path("./output/rdeic_0.10_step5")     # 重建
 device   = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ---------------- 初始化 metric ----------------
