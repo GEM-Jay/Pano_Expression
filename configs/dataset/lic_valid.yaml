@@ -19,5 +19,9 @@ data_loader:
   pin_memory: true
 
 batch_transform:
-  target: dataset.batch_transform.IdentityBatchTransform
-  params: {}
+  target: dataset.batch_transform.TailExtendBatchTransform
+  params:
+    extend_frac: 0
+    align: 64
+    keys: ["jpg"]
+

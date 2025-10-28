@@ -12,11 +12,12 @@ dataset:
       target_w: 512        # 与 valid 保持一致；显存允许可改为 768/1024/1536/2048（必须是 64 的倍数）
 
 batch_transform:
-  target: dataset.batch_transform.RollHBatchTransform
+  target: dataset.batch_transform.RollThenExtendBatchTransform
   params:
-    enabled: true
-    max_frac: 0.2          # 位移范围约 [-0.2W, +0.2W]
-    keys: ["jpg"]          # 只滚动输入图像；其余键保持不动
+    roll_max_frac: 0.2
+    extend_frac: 0   # 拓宽 ~10% （按 W 对齐到 64 的倍数）
+    align: 64
+    keys: ["jpg"]
 
 data_loader:
   batch_size: 2
