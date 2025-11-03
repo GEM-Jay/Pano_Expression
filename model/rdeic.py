@@ -1,66 +1,57 @@
 # -*- coding: utf-8 -*-
 """
-RDEIC (seam aligned, band-free) — 预处理扩宽版（No latent extend, No tile decode）
+RDEIC (refine stage, latent head-extend + pixel left-only blend)
 
-要点（与要求严格对齐）：
-- 训练/采样阶段：假设输入已在【预处理阶段】完成“先滚动(仅train)再右侧拼接”的扩宽。此文件不在 latent 做任何扩宽。
-- VAE 解码：整幅一次 decode（不瓦片），随后在像素域做【单侧融合（只写左带）】：
-    * 真实拼接像素 K_true = W_ext - W0     （由预处理决定，建议 ≈ ceil(W0/10) 并按 64 对齐）
-    * 融合带宽 K_blend = floor(K_true / 2)  （“最后融合取真正拼接像素的一半”）
-    * 左带 [0:K_blend] 与参考带 [W0:W0+K_blend] 按线性窗（可选小网缩放）融合；右端与尾巴不写回。
-- latent 阶段不再扩宽、不再 roll。
-- 日志/验证流程与原版一致；损失与指标均对齐到裁回 W0 后的成品。
-- 重要修复：像素融合避免任何 in-place 赋值，防止 AMP/Autograd 报错（AsStridedBackward + version bump）。
+要点（只含必要功能；不加额外正则/锚点）：
+- 压缩码流仍只覆盖原图宽 W0（码流不变）。
+- 解码/训练（is_refine=True）：
+  1) 先从码流/预处理得到 c_latent（宽 W0_lat）；
+  2) 在 latent 域做【左侧头部复制扩宽】到 W0_lat + K_lat；
+  3) 在扩宽后的幅面上执行扩散采样与 VAE 解码得到像素图（宽 W0+K_pix）；
+  4) 像素域【单侧融合（只写左带 [0:K_pix]）】，参考带永远取右尾巴 [W0:W0+K_pix]；
+     - 若 train_blend_net=True：启用 1×1 可学习融合权重网（通道共享、窗随位置变化）；
+     - 否则使用默认线性窗；
+  5) 裁回到原宽 W0，参与像素域损失（MSE/LPIPS等），日志和指标也基于裁回 W0。
+- 第一阶段（is_refine=False）路径不变。
 """
 
 import os
 import math
-from typing import Mapping, Any, Tuple, Optional
+from typing import Mapping, Any, Tuple, Optional, Dict
 
 import numpy as np
 import pyiqa
+from pathlib import Path
+from PIL import Image
 
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-from pathlib import Path
-from PIL import Image
-
-# ---- 可选：开启 UNet 水平环绕卷积（若 utils 支持）----
-def enable_feature_hwrap_for_unet(*args, **kwargs):
-    from utils.feature_hwrap import enable_feature_hwrap_for_unet as _impl
-    return _impl(*args, **kwargs)
-
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
-from utils.utils import *
 
+from utils.utils import *
+from ldm.util import log_txt_as_img, exists, instantiate_from_config, default
 from ldm.modules.diffusionmodules.util import (
-    conv_nd,
-    linear,
-    zero_module,
-    timestep_embedding,
-    checkpoint
+    conv_nd, linear, zero_module, timestep_embedding, checkpoint
 )
-from .spaced_sampler_relay import SpacedSampler
 from ldm.modules.attention import SpatialTransformer
 from ldm.models.diffusion.ddpm import LatentDiffusion
 from ldm.modules.diffusionmodules.openaimodel import (
-    UNetModel,
-    TimestepEmbedSequential,
-    ResBlock as ResBlock_orig,
-    Downsample,
-    Upsample,
-    AttentionBlock,
-    TimestepBlock
+    UNetModel, TimestepEmbedSequential, ResBlock as ResBlock_orig,
+    Downsample, Upsample, AttentionBlock, TimestepBlock
 )
-from ldm.util import log_txt_as_img, exists, instantiate_from_config, default
+from .spaced_sampler_relay import SpacedSampler
 from .lpips import LPIPS
 
 
-# ------------------------ 像素端融合权重小网（可选） ------------------------
+# ===================== 轻量像素融合权重小网（保留 & 可训练） =====================
 class BlendWeightNet(nn.Module):
+    """
+    输入：左带 L 与右尾巴参考 R_ref（仅 K 带宽内容）
+    输出：a_raw \in (0,1)，作为线性窗的“位置自适应”缩放权重
+    """
     def __init__(self, in_channels: int):
         super().__init__()
         ch = in_channels * 2  # L || R_ref
@@ -69,15 +60,15 @@ class BlendWeightNet(nn.Module):
         nn.init.constant_(self.conv.bias, 0.0)
 
     def forward(self, L: torch.Tensor, R_ref: torch.Tensor) -> torch.Tensor:
-        # 用带宽方向均值做权重估计，输出在 (0,1)
+        # 使用“沿高方向均值”的轻量方式，避免纹理噪声干扰 — 只随列位置变化
         Lm = L.mean(dim=2, keepdim=True)       # [B,C,1,K]
         Rm = R_ref.mean(dim=2, keepdim=True)   # [B,C,1,K]
         x = torch.cat([Lm, Rm], dim=1)         # [B,2C,1,K]
-        a = torch.sigmoid(self.conv(x))        # [B,1,1,K]
+        a = torch.sigmoid(self.conv(x))        # [B,1,1,K] in (0,1)
         return a
 
 
-# ------------------------ 控制分支（与原版一致） ------------------------
+# ===================== 控制分支（保持与原版一致） =====================
 class NoiseEstimator(nn.Module):
     def __init__(
         self,
@@ -136,8 +127,7 @@ class NoiseEstimator(nn.Module):
             attention_resolutions=attention_resolutions, dropout=dropout, channel_mult=channel_mult,
             conv_resample=conv_resample, dims=dims, use_checkpoint=use_checkpoint,
             use_fp16=use_fp16, num_heads=num_heads, num_head_channels=num_head_channels,
-            num_heads_upsample=num_heads_upsample,
-            use_scale_shift_norm=use_scale_shift_norm,
+            num_heads_upsample=num_heads_upsample, use_scale_shift_norm=use_scale_shift_norm,
             resblock_updown=resblock_updown, use_new_attention_order=use_new_attention_order,
             use_spatial_transformer=use_spatial_transformer, transformer_depth=transformer_depth,
             context_dim=context_dim, n_embed=n_embed, legacy=legacy,
@@ -220,7 +210,6 @@ class NoiseEstimator(nn.Module):
         it_dec_convs_out = iter(self.dec_zero_convs_out)
         scales = iter(self.scale_list)
 
-        # encoder
         for module_base, module_ctr in zip(base_model.input_blocks, self.control_model.input_blocks):
             h_base = module_base(h_base, emb_base, context)
             h_ctr = module_ctr(h_ctr, emb, context)
@@ -228,12 +217,10 @@ class NoiseEstimator(nn.Module):
             hs_base.append(h_base)
             hs_ctr.append(h_ctr)
 
-        # middle
         h_base = base_model.middle_block(h_base, emb_base, context)
         h_ctr = self.control_model.middle_block(h_ctr, emb, context)
         h_base = h_base + self.middle_block_out(h_ctr, emb) * next(scales)
 
-        # decoder
         for module_base in base_model.output_blocks:
             h_base = h_base + next(it_dec_convs_out)(hs_ctr.pop(), emb) * next(scales)
             h_base = th.cat([h_base, hs_base.pop()], dim=1)
@@ -250,10 +237,13 @@ class NoiseEstimator(nn.Module):
         for module_base in base_model.input_blocks:
             h_base = module_base(h_base, emb_base, context)
             hs_base.append(h_base)
+
         h_base = base_model.middle_block(h_base, emb_base, context)
+
         for module_base in base_model.output_blocks:
             h_base = th.cat([h_base, hs_base.pop()], dim=1)
             h_base = module_base(h_base, emb_base, context)
+
         return base_model.out(h_base)
 
 
@@ -280,10 +270,10 @@ class ControlModule(nn.Module):
         use_scale_shift_norm=False,
         resblock_updown=False,
         use_new_attention_order=False,
-        use_spatial_transformer=False,    # custom transformer support
-        transformer_depth=1,              # custom transformer support
-        context_dim=None,                 # custom transformer support
-        n_embed=None,                     # custom support for prediction of discrete ids into codebook of first stage vq model
+        use_spatial_transformer=False,
+        transformer_depth=1,
+        context_dim=None,
+        n_embed=None,
         legacy=True,
         disable_self_attentions=None,
         num_attention_blocks=None,
@@ -368,12 +358,9 @@ class ControlModule(nn.Module):
             for nr in range(self.num_res_blocks[level]):
                 layers = [
                     ResBlock(
-                        ch,
-                        time_embed_dim,
-                        dropout,
+                        ch, time_embed_dim, dropout,
                         out_channels=mult * model_channels,
-                        dims=dims,
-                        use_checkpoint=use_checkpoint,
+                        dims=dims, use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
                     )
                 ]
@@ -382,18 +369,15 @@ class ControlModule(nn.Module):
                     if num_head_channels == -1:
                         dim_head = ch // num_heads
                     else:
-                        num_head_channels = find_denominator(ch, self.num_head_channels)
+                        num_head_channels = find_denominator(ch, num_head_channels)
                         num_heads = ch // num_head_channels
                         dim_head = num_head_channels
 
                     if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
                         layers.append(
                             AttentionBlock(
-                                ch,
-                                use_checkpoint=use_checkpoint,
-                                num_heads=num_heads,
-                                num_head_channels=dim_head,
-                                use_new_attention_order=use_new_attention_order,
+                                ch, use_checkpoint=use_checkpoint, num_heads=num_heads,
+                                num_head_channels=dim_head, use_new_attention_order=use_new_attention_order
                             ) if not use_spatial_transformer else SpatialTransformer(
                                 ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
                                 disable_self_attn=False, use_linear=use_linear_in_transformer,
@@ -424,8 +408,9 @@ class ControlModule(nn.Module):
         self.middle_block = TimestepEmbedSequential(
             ResBlock(ch, time_embed_dim, dropout, out_channels=ch, dims=dims,
                      use_checkpoint=use_checkpoint, use_scale_shift_norm=use_scale_shift_norm),
-            AttentionBlock(ch, use_checkpoint=use_checkpoint, num_heads=num_heads,
-                           num_head_channels=dim_head, use_new_attention_order=use_new_attention_order)
+            AttentionBlock(ch, use_checkpoint=use_checkpoint,
+                           num_heads=num_heads, num_head_channels=dim_head,
+                           use_new_attention_order=use_new_attention_order)
             if not use_spatial_transformer else SpatialTransformer(
                 ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
                 disable_self_attn=False, use_linear=use_linear_in_transformer, use_checkpoint=use_checkpoint
@@ -437,10 +422,12 @@ class ControlModule(nn.Module):
 
 
 def find_denominator(number, start):
-    if start >= number: return number
+    if start >= number:
+        return number
     while start != 0:
         residual = number % start
-        if residual == 0: return start
+        if residual == 0:
+            return start
         start -= 1
 
 
@@ -506,10 +493,10 @@ class ResBlock(TimestepBlock):
         return self.skip_connection(x) + h
 
 
-# ============================== RDEIC ==============================
+# ============================== RDEIC 主体 ==============================
 class RDEIC(LatentDiffusion):
 
-    DEFAULT_DOWNSAMPLE = 8  # SD VAE 下采样因子
+    DEFAULT_DOWNSAMPLE = 8  # SD VAE 下采样因子（保持可覆盖）
 
     def __init__(self,
                  control_stage_config: Mapping[str, Any],
@@ -525,11 +512,14 @@ class RDEIC(LatentDiffusion):
                  ckpt_path_pre: Optional[str],
                  preprocess_config: Mapping[str, Any],
                  calculate_metrics: Mapping[str, Any],
+                 # === 仅必要的新/现有配置项 ===
                  vae_blend_enabled: bool = True,
-                 train_blend_net: bool = False,
+                 train_blend_net: bool = True,
+                 extend_k_pix: int = 64,   # NEW: latent 扩宽对应的像素带宽 K_pix（默认 64，可改）
                  *args, **kwargs) -> "RDEIC":
         super().__init__(*args, **kwargs)
 
+        # 控制与预处理
         self.control_model = instantiate_from_config(control_stage_config)
         self.preprocess_model = instantiate_from_config(preprocess_config)
         if sync_path is not None:
@@ -546,10 +536,10 @@ class RDEIC(LatentDiffusion):
 
         assert used_timesteps <= self.num_timesteps
         self.used_timesteps = used_timesteps
-        self.calculate_metrics = calculate_metrics
 
         # 指标
-        self.metric_funcs = {}
+        self.calculate_metrics = calculate_metrics
+        self.metric_funcs: Dict[str, Any] = {}
         for _, opt in calculate_metrics.items():
             mopt = opt.copy(); name = mopt.pop('type', None); mopt.pop('better', None)
             self.metric_funcs[name] = pyiqa.create_metric(name, device=self.device, **mopt)
@@ -560,33 +550,21 @@ class RDEIC(LatentDiffusion):
             self.sampler = SpacedSampler(self)
             self.perceptual_loss = LPIPS(pnet_type='alex')
 
-        # 水平环绕卷积开关（若 utils 支持）
-        try:
-            if self.is_refine:
-                enable_feature_hwrap_for_unet(self.model.diffusion_model, enabled=True)
-                print("[feature_hwrap] UNet horizontal wrap: ENABLED")
-            else:
-                print("[feature_hwrap] horizontal wrap: DISABLED (not refine)")
-        except Exception as e:
-            print("[feature_hwrap] enable failed:", e)
-
-        # 像素端融合设置
-        self.vae_blend_enabled = bool(vae_blend_enabled)
+        # 像素融合相关（保留 & 可学习）
+        self.vae_blend_enabled = bool(vae_blend_net_bool(vae_blend_enabled))
         self.train_blend_net = bool(train_blend_net)
-        self.blend_net_pixel  = BlendWeightNet(in_channels=3)
-        if (not self.is_refine) or (not self.train_blend_net):
-            for p in self.blend_net_pixel.parameters():
-                p.requires_grad = False
+        self.blend_net_pixel = BlendWeightNet(in_channels=3)
+        # 只有在 refine 且 train_blend_net=True 时参与训练；否则冻结参数但仍可前向
+        for p in self.blend_net_pixel.parameters():
+            p.requires_grad = bool(self.is_refine and self.train_blend_net)
 
-        # VAE 下采样因子（默认 8）
+        # 扩宽相关
+        self.extend_k_pix_default = int(max(0, extend_k_pix))  # 默认像素 K（可被 batch 覆盖）
         self.first_stage_downsample = int(getattr(self, 'first_stage_downsample', self.DEFAULT_DOWNSAMPLE))
 
-        # Debug 捕获
-        self._dbg_cap = None         # dict: {'capture': True, 'ali': tensor, 'mix': tensor}
-        self._dbg_saved_np = None    # dict: {'ali': np.uint8 HxWx3, 'mix': np.uint8 HxWx3}
-
-        # —— 仅记录：原图像素宽 W0，用于融合/裁剪（来自 batch['orig_size']）——
-        self._static_W0_pix = 0  # int
+        # 临时记录
+        self._static_W0_pix = 0   # 原图像素宽（来自 batch['orig_size']）
+        self._last_extend_k_pix = 0  # 记录实际采用的 K_pix（便于 debug）
 
     # ---------------- 工具 ----------------
     @staticmethod
@@ -598,93 +576,79 @@ class RDEIC(LatentDiffusion):
         x = x.clamp(0, 1).permute(1, 2, 0).numpy()
         return (x * 255.0 + 0.5).astype(np.uint8)
 
-    # =================== 像素域融合（只写回左带 [0:K]；参考带 [W0:W0+K]） ===================
     @staticmethod
-    def _pixel_blend_left_only_with_right_tail(img: torch.Tensor, W0: int, K: int, use_net: bool,
-                                               blend_net: BlendWeightNet, train_blend_net: bool,
-                                               dbg_store: dict = None) -> torch.Tensor:
+    def _round_up_multiple(x: int, m: int) -> int:
+        if m <= 1: return x
+        r = x % m
+        return x if r == 0 else x + (m - r)
+
+    # ============ NEW: latent 左侧“头部复制”扩宽 ============ #
+    @staticmethod
+    def _latent_extend_left_head(x_lat: torch.Tensor, K_lat: int) -> torch.Tensor:
         """
-        img: [B,3,H,W_ext]  VAE 解码后（包含右侧预处理扩宽尾巴）
+        x_lat: [B,C,H,W0_lat]
+        返回:  [B,C,H,W0_lat + K_lat]  ==  [head(K_lat), x_lat]
+        """
+        if K_lat <= 0: return x_lat
+        head = x_lat[..., :K_lat]              # 头部 K_lat 列
+        x_ext = torch.cat([head, x_lat], dim=-1)
+        return x_ext
+
+    # ============ 像素域单侧融合（左带写回；右尾巴为参照） ============ #
+    @staticmethod
+    def _pixel_blend_left_only_with_right_tail(img: torch.Tensor, W0: int, K: int,
+                                               use_net: bool, blend_net: BlendWeightNet,
+                                               train_blend_net: bool) -> torch.Tensor:
+        """
+        img: [B,3,H,W_ext]  VAE 解码后（包含右侧“尾巴”）
         W0:  原图像素宽（未扩宽）
         K:   融合带宽（像素）
-        逻辑：只回写左带 [0:K]，参考带来自扩充区 [W0:W0+K]；不动右端与尾巴。
-        —— 无任何 in-place：通过新张量拼接，避免 Autograd 版本冲突。
+        逻辑：只回写左带 [0:K]，参考带来自右尾巴 [W0:W0+K]；不动右端与尾巴。
         """
         B, C, H, W = img.shape
         if W0 <= 0 or W <= W0 or K <= 0:
             return img
-        K = max(1, min(K, W - W0, W0))  # K 不能超过扩充长度与左带宽
+        K = max(1, min(K, W - W0, W0))
 
-        L     = img[..., :K]           # 左带 [0:K]
-        R_ref = img[..., W0:W0+K]      # 扩充参考 [W0:W0+K]
+        L     = img[..., :K]           # 左带
+        R_ref = img[..., W0:W0+K]      # 右尾巴参照
 
-        # 线性窗 a: 0..1（缝→内），缝处更贴 R_ref，带内深处更贴 L
+        # 线性窗（从缝 0→带内 1）：越靠近缝越贴 R_ref，越靠内贴 L
         a_lin = torch.linspace(0, 1, K, device=img.device, dtype=img.dtype).view(1,1,1,K)
 
         if use_net and (blend_net is not None):
             with torch.set_grad_enabled(train_blend_net):
                 a_raw = blend_net(L, R_ref)  # [B,1,1,K]
+            # 轻量缩放，限制在[0.7,1.0]避免过拟合导致反向权重
             scale = 0.7 + 0.3 * a_raw
             a = (a_lin * scale).clamp(0.0, 1.0)
         else:
             a = a_lin
 
-        # Debug：热力图（白→红 0→1；只标注左带[0:K]）
-        # Debug：热力图（只标注左带[0:K]）
-        if isinstance(dbg_store, dict):
-            with torch.no_grad():
-                # 先画一张完整 W_ext 的热力图（可选，方便排查）
-                heat_ext = img.new_zeros((B, 3, H, W))
-                v = a.expand(B, 1, H, K)
-                r = torch.ones_like(v);
-                g = 1.0 - v;
-                b = 1.0 - v
-                heat_ext[..., :K] = torch.cat([r, g, b], dim=1)
-                dbg_store['mix_ext'] = heat_ext.clamp(0, 1)  # 可选：保留完整宽度版本
-
-                # ——按 W0 裁一份（用于 *_mix.png 输出）——
-                heat_w0 = heat_ext[..., :W0].contiguous()
-                dbg_store['mix'] = heat_w0
-
-        # 新张量拼接，避免 in-place
-        L_blended = (1.0 - a) * R_ref + a * L                  # [B,3,H,K]
-        rest      = img[..., K:]                               # [B,3,H,W-K]
-        out       = torch.cat([L_blended, rest], dim=-1)       # [B,3,H,W]
+        L_blended = (1.0 - a) * R_ref + a * L
+        out = torch.cat([L_blended, img[..., K:]], dim=-1)
         return out
 
-    def circular_blend_pixel(self, img: torch.Tensor, W0_pix: int, dbg_store: dict = None) -> torch.Tensor:
-        if not (self.is_refine and self.vae_blend_enabled):
-            return img
-        W_ext  = int(img.shape[-1])
-        W0     = int(W0_pix)
-        K_true = max(0, W_ext - W0)
-        if K_true <= 0:
-            return img
-        K_blend = max(1, K_true // 2)  # “最后融合取真正拼接像素的一半”
-        use_net = bool(self.train_blend_net)
-        return self._pixel_blend_left_only_with_right_tail(
-            img, W0=W0, K=K_blend, use_net=use_net,
-            blend_net=self.blend_net_pixel, train_blend_net=self.train_blend_net,
-            dbg_store=dbg_store
-        )
-
-    # ---------------- 解码（不做瓦片）：整幅 decode → 单侧融合 ----------------
+    # ============ VAE 解码（含像素端融合） ============ #
     def _vae_decode_full(self, z: torch.Tensor, with_grad: bool) -> torch.Tensor:
-        """
-        直接整幅解码，不做瓦片；随后做像素域单侧融合（仅左带），再返回。
-        """
-        img_full = self.first_stage_model.decode(z / self.scale_factor) if with_grad else super().decode_first_stage(z)
+        if with_grad:
+            img_full = self.first_stage_model.decode(z / self.scale_factor)
+        else:
+            img_full = super().decode_first_stage(z)
 
-        # —— 捕获融合前画面（ali）
-        cap = getattr(self, "_dbg_cap", None)
-        if isinstance(cap, dict) and cap.get('capture', False):
-            with torch.no_grad():
-                cap['ali'] = img_full.detach().clone()
-
-        # —— 像素域单侧融合（只在 W0 内左带写回）
+        # W0 决定是否需要融合
         W0_pix = int(self._static_W0_pix) if int(self._static_W0_pix) > 0 else int(img_full.shape[-1])
-        if self.vae_blend_enabled:
-            img_full = self.circular_blend_pixel(img_full, W0_pix, dbg_store=cap if isinstance(cap, dict) else None)
+        if self.is_refine and self.vae_blend_enabled:
+            W_ext  = int(img_full.shape[-1])
+            K_true = max(0, W_ext - W0_pix)
+            K_blend = max(1, K_true // 2)
+            if K_blend > 0:
+                img_full = self._pixel_blend_left_only_with_right_tail(
+                    img_full, W0=W0_pix, K=K_blend,
+                    use_net=bool(self.train_blend_net),
+                    blend_net=self.blend_net_pixel,
+                    train_blend_net=bool(self.train_blend_net)
+                )
         return img_full
 
     @torch.no_grad()
@@ -694,14 +658,14 @@ class RDEIC(LatentDiffusion):
     def decode_first_stage_with_grad(self, z):
         return self._vae_decode_full(z, with_grad=True)
 
-    # ------------------- 公共逻辑 -------------------
+    # ---------------- 公共逻辑 ----------------
     def apply_condition_encoder(self, x):
         c_latent, likelihoods, q_likelihoods, emb_loss, guide_hint = self.preprocess_model(x)
         return c_latent, likelihoods, q_likelihoods, emb_loss, guide_hint
 
     @torch.no_grad()
     def apply_condition_compress(self, x, stream_path, H, W):
-        # 注意：此处的 H、W 应为原图（未扩宽）尺寸，用于 bpp
+        # H,W 是原图（未扩宽）的尺寸，用于 bpp
         _, h = self.encode_first_stage(x * 2 - 1)
         h = h * self.scale_factor
         out = self.preprocess_model.compress(h)
@@ -721,44 +685,80 @@ class RDEIC(LatentDiffusion):
 
     def get_input(self, batch, k, bs=None, *args, **kwargs):
         """
-        关键变化：
-        - 假设 batch[first_stage_key] 已为【预处理扩宽后】图像（[-1,1]），宽 W_ext。
-        - 从 batch['orig_size'] 读取原始宽 W0（H0,W0），供解码融合与裁剪使用。
+        - 假设 batch[first_stage_key] 是“未扩宽”的原图（或内部逻辑会统一处理）。
+        - 关键：从 batch['orig_size'] 读取 (H0,W0)，供解码融合与裁剪使用。
+        - 可选：batch['extend_k_pix'] 若提供，则覆盖默认 K_pix。
         """
         target, x, h, c = super().get_input(batch, self.first_stage_key, bs=bs, *args, **kwargs)
         c_latent, likelihoods, q_likelihoods, emb_loss, guide_hint = self.apply_condition_encoder(h)
 
-        # 从 batch 读取 W0；若缺失则退化为 W0=W_ext（不做融合）
+        # 读取 W0
         try:
-            if torch.is_tensor(batch["orig_size"]):
+            if torch.is_tensor(batch.get("orig_size", None)):
                 H0, W0 = batch["orig_size"].view(-1).tolist()
             else:
-                H0, W0 = batch["orig_size"]
+                H0, W0 = batch.get("orig_size", (int(x.shape[-2]), int(x.shape[-1])))
             H0, W0 = int(H0), int(W0)
         except Exception:
-            H0, W0 = int(x.shape[-2]), int(x.shape[-1])  # 退化为不融合
+            H0, W0 = int(x.shape[-2]), int(x.shape[-1])
 
+        # bpp 口径：以原图面积 H0*W0
         N = x.shape[0]
-        num_pixels = N * H0 * W0 * 64   # bpp 用原图面积（未扩宽）
+        num_pixels = N * H0 * W0 * 64
         bpp = sum((torch.log(l).sum() / (-math.log(2) * num_pixels)) for l in likelihoods)
         q_bpp = sum((torch.log(l).sum() / (-math.log(2) * num_pixels)) for l in q_likelihoods)
 
-        # 读取完 H0, W0 后，覆盖 target 为裁回 W0 的成品
+        # 记录 W0，裁 target 到 W0（训练/验证统一）
         target_W0 = target[..., :H0, :W0]
-        self._static_W0_pix = int(W0)  # 继续给像素融合用
-        hshift = torch.tensor(0, device=target.device)  # 保留原逻辑
+        self._static_W0_pix = int(W0)
+
+        # 读取/决定本次扩宽的 K_pix（可被 batch 指定覆盖）
+        extend_k_pix = int(self.extend_k_pix_default)
+        try:
+            if "extend_k_pix" in batch:
+                extend_k_pix = int(batch["extend_k_pix"])
+        except Exception:
+            pass
+        extend_k_pix = max(0, extend_k_pix)  # 可为0（不扩宽）
+        self._last_extend_k_pix = extend_k_pix
+
+        # 为后续使用提供
+        hshift = torch.tensor(0, device=target.device)
+        # ---- 原图尺寸（像素域）用于后续像素融合与裁剪 ----
+        try:
+            if torch.is_tensor(batch.get("orig_size", None)):
+                H0, W0 = map(int, batch["orig_size"].view(-1).tolist())
+            else:
+                # 若 datamodule 未提供，就用当前 x 的尺寸
+                H0, W0 = int(x.shape[-2]), int(x.shape[-1])
+        except Exception:
+            H0, W0 = int(x.shape[-2]), int(x.shape[-1])
+
+        self._static_W0_pix = int(W0)  # 供像素端融合使用（裁回 W0）
+
+        # ---- 计算 latent 扩宽量：像素域 K_pix -> latent 域 K_lat ----
+        extend_k_pix = int(getattr(self, "extend_k_pix", 0))  # <== 新增的配置项（像素域）
+        ds = int(getattr(self, "first_stage_downsample", 8))  # SD VAE 默认 8
+        K_true_pix = max(0, extend_k_pix)  # 真正扩宽像素
+        K_lat = K_true_pix // max(ds, 1)  # 映射到 latent（向下取整）
+        if K_lat > 0 and self.is_refine:
+            # 同步对 c_latent 和 guide_hint 做“左侧头部复制”扩宽
+            c_latent = self._latent_head_extend(c_latent, K_lat)  # [B,C,h,w+K_lat]
+            if guide_hint is not None:
+                guide_hint = self._latent_head_extend(guide_hint, K_lat)  # [B,*,h,w+K_lat]
 
         return x, dict(
             c_crossattn=[c],
-            c_latent=[c_latent],
+            c_latent=[c_latent],  # 可能已扩宽
             bpp=bpp, q_bpp=q_bpp, emb_loss=emb_loss,
-            guide_hint=guide_hint,
-            target=target_W0,  # ← 用裁剪后的 target
+            guide_hint=guide_hint,  # 可能已扩宽
+            target=target[..., :H0, :W0],
             orig_size=torch.tensor([H0, W0], device=target.device),
-            hshift_pix=hshift
+            # 可选：记录像素域真实扩宽，供日志/调试
+            extend_k_pix=torch.tensor([K_true_pix], device=target.device),
         )
 
-    # —— 模型前向：不做任何 latent 扩宽/roll —— #
+    # --------- 扩宽后前向 ---------
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):
         diffusion_model = self.model.diffusion_model
         cond_txt = torch.cat(cond['c_crossattn'], 1)
@@ -791,69 +791,56 @@ class RDEIC(LatentDiffusion):
         H = min(x.size(-2), y.size(-2)); W = min(x.size(-1), y.size(-1))
         return x[..., :H, :W], y[..., :H, :W]
 
-    # ---------------- 日志可视化 ----------------
+    # ---------------- 日志可视化（refine 中也进行扩宽与融合） ----------------
     @torch.no_grad()
     def log_images(self, batch, sample_steps=5, bs=2):
-        # reset W0 记录
-        self._static_W0_pix = 0
-
+        self._static_W0_pix = 0  # reset
         log = dict()
+
         z, c = self.get_input(batch, self.first_stage_key, bs=bs)
-        bpp = c["q_bpp"] + 0.003418
-        bpp_val = float(bpp.detach().mean()); bpp_img = [f'{bpp_val:.4f}'] * 4
         target = c["target"]
-        log["target"] = (target + 1) / 2
-
-        # —— 直接重建（不采样） —— #
         H0, W0 = map(int, c["orig_size"].tolist())
-        vae_rec = self.decode_first_stage(z)
-        vae_rec = vae_rec[..., :H0, :W0]  # ← 明确裁到 W0
+        K_pix = int(c["extend_k_pix"].item())
+        K_lat = int(math.ceil(K_pix / float(self.first_stage_downsample))) if K_pix > 0 else 0
 
+        # 直接重建（不采样），保持原宽
+        vae_rec = self.decode_first_stage(z)[..., :H0, :W0]
+        log["target"] = (target + 1) / 2
         log["vae_rec"] = (vae_rec + 1) / 2
-        log["text"] = (log_txt_as_img((512, 512), bpp_img, size=16) + 1) / 2
 
-        if not sample_steps or sample_steps <= 0:
-            log["samples"] = log["vae_rec"]; return log, bpp
-
-        # —— 采样 —— #
+        # === 采样：在 latent 上左侧扩宽 ===
         c_latent = c["c_latent"][0]
-        b, cch, h, w_ext = c_latent.shape
-        shape = (b, self.channels, h, w_ext)
+        b, cch, h, w0_lat = c_latent.shape
+        w_ext_lat = w0_lat + K_lat
+        shape_ext = (b, self.channels, h, w_ext_lat)
+
+        # 扩宽后的起点
+        x_start_ext = self._latent_extend_left_head(c_latent, K_lat)
         t = torch.ones((b,)).long().to(self.device) * self.used_timesteps - 1
-        noise = default(None, lambda: torch.randn_like(c_latent))
-        x_T = self.q_sample(x_start=c_latent, t=t, noise=noise)
+        noise = torch.randn_like(x_start_ext)
+        x_T = self.q_sample(x_start=x_start_ext, t=t, noise=noise)
 
-        if self.is_refine:
-            samples_ext = self.sampler.sample(self.fixed_step, shape, c, unconditional_guidance_scale=1.0,
-                                              unconditional_conditioning=None, x_T=x_T)
-        else:
-            sampler = SpacedSampler(self)
-            samples_ext = sampler.sample(sample_steps, shape, c, unconditional_guidance_scale=1.0,
-                                         unconditional_conditioning=None, x_T=x_T)
+        # 采样
+        steps = self.fixed_step if self.is_refine else sample_steps
+        sampler = self.sampler if self.is_refine else SpacedSampler(self)
+        samples_ext = sampler.sample(steps, shape_ext, c, unconditional_guidance_scale=1.0,
+                                     unconditional_conditioning=None, x_T=x_T)
 
-        # 打开“同管线抓帧”开关（捕获 ali/mix）
-        self._dbg_cap = {'capture': True}
-        x_samples_full = self.decode_first_stage(samples_ext)  # 内部会融合
-        try:
-            ali_t = self._dbg_cap.get('ali', None)
-            mix_t = self._dbg_cap.get('mix', None)
-            dbg_np = {}
-            if ali_t is not None:
-                dbg_np['ali'] = self._to_uint8_image(ali_t)
-            if mix_t is not None:
-                dbg_np['mix'] = self._to_uint8_image(mix_t)
-            self._dbg_saved_np = dbg_np if dbg_np else None
-        except Exception:
-            self._dbg_saved_np = None
-        finally:
-            self._dbg_cap = None
-
+        # 解码（内含像素端单侧融合）
+        self._static_W0_pix = int(W0)  # 供融合用
+        x_samples_full = self.decode_first_stage(samples_ext)
         x_samples = x_samples_full[..., :H0, :W0]
 
         log["samples"] = (x_samples + 1) / 2
+
+        # 文本板
+        bpp = c["q_bpp"] + 0.003418
+        bpp_val = float(bpp.detach().mean()); bpp_img = [f'{bpp_val:.4f}']*4
+        log["text"] = (log_txt_as_img((512, 512), bpp_img, size=16) + 1) / 2
+
         return log, bpp
 
-    # ---------------- 采样（保留兼容） ----------------
+    # ---------------- 采样（保持兼容） ----------------
     @torch.no_grad()
     def sample_log(self, cond, steps):
         x_T = cond["c_latent"][0]
@@ -871,7 +858,7 @@ class RDEIC(LatentDiffusion):
                                      unconditional_conditioning=None, x_T=x_T)
         return samples
 
-    # ================= 训练/验证 =================
+    # ================= 训练 =================
     def configure_optimizers(self):
         lr = self.learning_rate
         params = []
@@ -880,6 +867,7 @@ class RDEIC(LatentDiffusion):
         if not self.sd_locked:
             params += list(self.model.diffusion_model.output_blocks.parameters())
             params += list(self.model.diffusion_model.out.parameters())
+        # 仅当 refine 且 train_blend_net=True 时可训练
         if self.is_refine and self.train_blend_net:
             params += list(self.blend_net_pixel.parameters())
         params = [p for p in params if p.requires_grad]
@@ -888,34 +876,33 @@ class RDEIC(LatentDiffusion):
 
     def p_losses(self, x_start, cond, t, noise=None):
         loss_dict = {}; prefix = 'T' if self.training else 'V'
+        c_latent = cond['c_latent'][0]
 
-        # 这里的 x_start、cond['c_latent'][0] 的宽度都是 W_ext（预处理已扩宽）
-        x_start_ext = x_start
-        c_latent_ext = cond['c_latent'][0]
-
-        # 标准/精修两路
         if not self.is_refine:
-            noise = default(noise, lambda: torch.randn_like(x_start_ext)) + (c_latent_ext - x_start_ext) / self.lamba
-            x_noisy_ext = self.q_sample(x_start=x_start_ext, t=t, noise=noise)
-            model_output_ext = self.apply_model(x_noisy_ext, t, cond)
+            # 第一阶段逻辑：保持原样
+            noise = default(noise, lambda: torch.randn_like(x_start)) + (c_latent - x_start) / self.lamba
+            x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
+            model_output = self.apply_model(x_noisy, t, cond)
 
             if self.parameterization == "x0":
-                target = x_start_ext
+                target = x_start
             elif self.parameterization == "eps":
-                target = x_start_ext
-                model_output_ext = self._predict_xstart_from_eps(x_noisy_ext, t, model_output_ext)
+                target = x_start
+                model_output = self._predict_xstart_from_eps(x_noisy, t, model_output)
             elif self.parameterization == "v":
-                target = self.get_v(x_start_ext, noise, t)
+                target = self.get_v(x_start, noise, t)
             else:
                 raise NotImplementedError()
 
-            loss_simple = self.get_loss(model_output_ext, target, mean=False).mean([1,2,3])
+            loss_simple = self.get_loss(model_output, target, mean=False).mean([1,2,3])
             loss_dict.update({f'{prefix}/l_simple': loss_simple.mean()})
+
             logvar_t = self.logvar[t].to(self.device)
             loss = loss_simple / torch.exp(logvar_t) + logvar_t
             if self.learn_logvar:
                 loss_dict.update({f'{prefix}/l_gamma': loss.mean()})
                 loss_dict.update({'logvar': self.logvar.data.mean()})
+
             loss = self.l_guide_weight * loss.mean()
 
             # bpp/emb
@@ -928,55 +915,61 @@ class RDEIC(LatentDiffusion):
             loss_dict.update({f'{prefix}/l_emb': loss_emb.mean()})
             loss += self.l_bpp_weight * loss_emb
 
-            # 引导对齐（latent）
-            loss_guide = self.get_loss(c_latent_ext, x_start_ext)
+            # latent 引导
+            loss_guide = self.get_loss(c_latent, x_start)
             loss_dict.update({f'{prefix}/l_guide': loss_guide.mean()})
             loss += self.l_guide_weight * loss_guide
 
             loss_dict.update({f'{prefix}/loss': loss})
             return loss, loss_dict
 
-        # refine：sample_grad → 解码（含像素单侧融合）→ 裁回 W0 计算图像损失
-        b, cch, h, w_ext = c_latent_ext.shape
-        noise = default(noise, lambda: torch.randn_like(c_latent_ext))
-        x_T_ext = self.q_sample(x_start=c_latent_ext, t=t, noise=noise)
-        steps = self.fixed_step
+        # ====== refine：latent 左侧扩宽 → 采样 → VAE解码（含像素融合）→ 裁回W0 ======
+        H0, W0 = map(int, cond["orig_size"].tolist())
+        K_pix = int(cond["extend_k_pix"].item())
+        K_lat = int(math.ceil(K_pix / float(self.first_stage_downsample))) if K_pix > 0 else 0
 
+        # 扩宽 latent
+        x_start_lat = c_latent
+        x_start_ext = self._latent_extend_left_head(x_start_lat, K_lat)
+        b, cch, h, w_ext = x_start_ext.shape
+
+        # 采样
+        noise = default(noise, lambda: torch.randn_like(x_start_ext))
+        x_T_ext = self.q_sample(x_start=x_start_ext, t=t, noise=noise)
+        steps = self.fixed_step
         samples_ext = self.sampler.sample_grad(steps, (b, self.channels, h, w_ext), cond,
                                                unconditional_guidance_scale=1.0,
                                                unconditional_conditioning=None, x_T=x_T_ext)
-        model_output_pix = self.decode_first_stage_with_grad(samples_ext)  # 内含像素端融合
-        target = cond['target']
-        model_output_pix = self._align_to_target(model_output_pix, target)
 
-        # latent 简单项
+        # 解码（像素端单侧融合）并裁回 W0
+        self._static_W0_pix = int(W0)
+        model_output_pix = self.decode_first_stage_with_grad(samples_ext)
+        model_output_pix = self._align_to_target(model_output_pix, cond['target'])
+
+        # latent 简单项（对扩宽后的 latent 进行轻约束）
         loss_simple = self.get_loss(samples_ext, x_start_ext, mean=False).mean([1,2,3])
         loss_dict.update({f'{prefix}/l_simple': loss_simple.mean()})
         loss = self.l_guide_weight * loss_simple.mean()
 
         # 像素域损失
-        loss_mse = self.get_loss(model_output_pix, target, mean=False).mean([1,2,3])
+        loss_mse = self.get_loss(model_output_pix, cond['target'], mean=False).mean([1,2,3])
         loss_dict.update({f'{prefix}/l_mse': loss_mse.mean()})
         loss += self.l_guide_weight * loss_mse.mean()
 
         with torch.cuda.amp.autocast(enabled=False):
-            loss_lpips = self.perceptual_loss(model_output_pix.float(), target.float())
+            loss_lpips = self.perceptual_loss(model_output_pix.float(), cond['target'].float())
         loss_dict.update({f'{prefix}/l_lpips': loss_lpips.mean()})
         loss += self.l_guide_weight * loss_lpips * 0.5
 
-        # bpp/emb
+        # bpp / emb
         loss_bpp = cond['bpp']; guide_bpp = cond['q_bpp']
         loss_dict.update({f'{prefix}/l_bpp': loss_bpp.mean()})
         loss_dict.update({f'{prefix}/q_bpp': guide_bpp.mean()})
         loss += self.l_bpp_weight * loss_bpp
 
-        loss_emb = cond['emb_loss']; loss_dict.update({f'{prefix}/l_emb': loss_emb.mean()})
+        loss_emb = cond['emb_loss']
+        loss_dict.update({f'{prefix}/l_emb': loss_emb.mean()})
         loss += self.l_bpp_weight * loss_emb
-
-        # latent 闭环（轻微约束）
-        latent_seam = F.l1_loss(samples_ext[..., :1], samples_ext[..., -1:])
-        loss += 0.02 * latent_seam
-        loss_dict.update({f'{prefix}/l_seam_latent': latent_seam.detach()})
 
         loss_dict.update({f'{prefix}/loss': loss})
         return loss, loss_dict
@@ -1036,14 +1029,6 @@ class RDEIC(LatentDiffusion):
                 out_png = os.path.join(save_dir, f"{batch_idx}_{i}.png")
                 Image.fromarray(x_vis).save(out_png)
 
-                dbg = getattr(self, "_dbg_saved_np", None)
-                if isinstance(dbg, dict):
-                    if 'ali' in dbg:
-                        Image.fromarray(dbg['ali']).save(os.path.join(save_dir, f"{batch_idx}_{i}_ali.png"))
-                    if 'mix' in dbg:
-                        Image.fromarray(dbg['mix']).save(os.path.join(save_dir, f"{batch_idx}_{i}_mix.png"))
-                self._dbg_saved_np = None
-
                 if do_metrics:
                     x = log["samples"].float(); y = log["target"].float(); x, y = self._align_pair(x, y)
                     if "psnr" in self.metric_funcs:    psnr_vals.append(float(self.metric_funcs["psnr"](x, y)))
@@ -1056,6 +1041,17 @@ class RDEIC(LatentDiffusion):
             if msssim_vals: out.append(sum(msssim_vals) / len(msssim_vals))
             if lpips_vals:  out.append(sum(lpips_vals) / len(lpips_vals))
         return out
+
+    def _latent_head_extend(self, x: torch.Tensor, K_lat: int) -> torch.Tensor:
+        """
+        在 latent 域做“左侧头部复制”扩宽：把前 K_lat 列复制到最左侧。
+        x: [B,C,H,W],  K_lat >= 0
+        out: [B,C,H,W + K_lat]
+        """
+        if K_lat is None or K_lat <= 0:
+            return x
+        head = x[..., :K_lat]  # 复制“头部 K_lat 列”
+        return torch.cat([head, x], dim=-1)
 
     def on_validation_epoch_start(self):
         self.preprocess_model.quantize.reset_usage()
@@ -1122,3 +1118,11 @@ class RDEIC(LatentDiffusion):
                         ckpt_base['state_dict'][dst_key] = ckpt_base['state_dict'][key]
         res_sync = self.load_state_dict(ckpt_base['state_dict'], strict=False)
         print(f'[{len(res_sync.missing_keys)} keys are missing from the model (hint processing and cross connections included)]')
+
+
+def vae_blend_net_bool(x) -> bool:
+    # 兼容 YAML 中传入的各种真假
+    if isinstance(x, bool): return x
+    if isinstance(x, (int, float)): return bool(x)
+    if isinstance(x, str): return x.lower() not in ("0", "false", "off", "no", "")
+    return True

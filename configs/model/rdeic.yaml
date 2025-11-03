@@ -37,6 +37,7 @@ params:
   # 5 个无缝相关开关
   vae_blend_enabled: true  # 是否在VAE解码的时候开启融合
   train_blend_net: true   # 不联训则用默认余弦窗，true为开启，false为关
+  extend_k_pix: 64
 
   control_stage_config:
     target: model.rdeic.NoiseEstimator
