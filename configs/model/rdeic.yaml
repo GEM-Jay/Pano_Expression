@@ -21,7 +21,7 @@ params:
   sync_path: ./weight/v2-1_512-ema-pruned.ckpt #  path to the StableDiffusion v 2.1 weights
   synch_control: False
   ckpt_path_pre: ~
-  
+
   sd_locked: True
 
   #is_refine: 开启第二阶段，fixed_step建议保持5
@@ -29,15 +29,17 @@ params:
   fixed_step: 5
   used_timesteps: 500
 
-  # Learning rate.权重
-  learning_rate: 5e-5
-  l_guide_weight: 0.7
-  l_bpp_weight: 0.5
+  # Learning rate.权重  bpp_0.003 1 24   bpp_0.005  1 12   bpp_0.008  1 4
+  learning_rate: 2e-5
+  l_guide_weight: 1  #↑,画质倾向更好，间接也会推高所需的 bpp。↓，间接可能让 bpp 再低一点，但同时画质会更差，或者生成结果偏散。
+  l_bpp_weight: 12      #直接压 bpp，基本等于“压缩力度”，调大 l_bpp_weight，训练会更“在乎”把 bpp 压低，调小 l_bpp_weight，调小 l_bpp_weight
+  # loss ≈ 重建相关数据 + l_bpp_weight * bpp +  l_bpp_weight * emb_loss + l_guide_weight * latent_guide_loss
 
-  # 5 个无缝相关开关
-  vae_blend_enabled: true  # 是否在VAE解码的时候开启融合
-  train_blend_net: true   # 不联训则用默认余弦窗，true为开启，false为关
-  extend_k_pix: 64
+
+  # 3 个无缝相关开关
+  vae_blend_enabled: True  # 是否在VAE解码的时候开启融合、第一阶段关闭
+  train_blend_net: True   # 不联训则用默认余弦窗，true为开启，false为关、第一阶段关闭
+  extend_k_pix: 64  #第一阶段写成0，这是在第二阶段的latent侧拓宽，会对应取等价的latent宽度
 
   control_stage_config:
     target: model.rdeic.NoiseEstimator
@@ -124,8 +126,8 @@ params:
       type: psnr
       crop_border: 0
       test_y_channel: false
-
-    ms_ssim: 
+#
+    ms_ssim:
       type: ms_ssim
       test_y_channel: false
       

@@ -4,16 +4,17 @@ dataset:
   params:
     file_list: ./datalists/valid.list
     out_size: 0
-    crop_type: "none"
+    crop_type: none
     use_hflip: False
     use_rot: False
+
     resize_cfg:            # 与训练集统一，避免分布偏移
       enabled: true
-      target_w: 2048        # 与训练配置一致
+      target_w: 1024        # 与训练配置一致
 
 data_loader:
-  batch_size: 1
-  num_workers: 4
+  batch_size: 5
+  num_workers: 8
   shuffle: false
   drop_last: false
   pin_memory: true
@@ -22,6 +23,6 @@ batch_transform:
   target: dataset.batch_transform.TailExtendBatchTransform
   params:
     extend_frac: 0
-    align: 64
+    align: 0
     keys: ["jpg"]
 

@@ -1,13 +1,44 @@
-# inference.py
-from typing import List, Tuple
+# -*- coding: utf-8 -*-
+"""
+RDEIC 推理脚本（第二阶段 / refine 阶段）
+
+新管线要点（本脚本逻辑）：
+
+1) 读入全景图，必要时缩放到工作分辨率（例如 train 模式下 512x256）；
+2) 再 pad 到 64 的倍数（只在推理内部使用）；
+3) 直接对 pad 后的图做压缩（码流只覆盖当前工作分辨率 H0_in×W0_in）；
+4) 从码流解出 c_latent, guide_hint；
+5) 计算像素扩展宽度 K_pix，换算成 latent 扩展宽度 K_lat：
+      K_lat = K_pix // first_stage_downsample
+6) 在 latent 域做“右侧扩宽”：把左侧 K_lat 列复制到最右侧：
+      c_ext = [c_latent, c_latent[..., :K_lat]]
+7) 在扩宽后的 latent 上跑扩散采样（control / guide 同步扩宽）；
+8) VAE 解码一次，内部使用右侧 tail 做左侧融合，然后去 pad、裁回工作分辨率 H0_in×W0_in；
+9) 只保存一张最终图（融合 + 裁剪回工作分辨率的 ERP）。
+
+说明：
+- 当 resize_mode="train" 时，工作分辨率为 512x256：
+    * 压缩/解码/扩散都在 512x256 域内进行；
+    * bpp 以 512x256 的像素数为分母；
+    * 最终输出图像为 512x256。
+- 当 resize_mode="original" 时，工作分辨率为输入原图分辨率：
+    * bpp 以原图像素数为分母；
+    * 输出分辨率为原图分辨率。
+"""
+
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 from argparse import ArgumentParser, Namespace
+from typing import List, Tuple
+
 import numpy as np
-import torch, einops, pytorch_lightning as pl
+import torch
+import einops
+import pytorch_lightning as pl
 from PIL import Image
 from omegaconf import OmegaConf
+import time  # 用于计时
 
 from ldm.xformers_state import disable_xformers
 from model.spaced_sampler_relay import SpacedSampler
@@ -18,77 +49,18 @@ from utils.file import list_image_files, get_file_name_parts
 from utils.image import pad
 
 
-# =================== 工具：像素域环绕扩展 & 收尾 ===================
-
-def hwrap_extend_np(img: np.ndarray, k: int) -> np.ndarray:
-    """像素域左右各拼接 k 列（HWC, uint8）。"""
-    if k <= 0: return img
-    H, W, C = img.shape
-    k = min(int(k), W // 2)
-    left  = img[:, -k:, :]
-    right = img[:, :k,  :]
-    return np.concatenate([left, img, right], axis=1)
-
-@torch.no_grad()
-def _make_window(k: int, device, dtype, mode="cosine"):
-    j = torch.arange(k, device=device, dtype=dtype)
-    if mode == "linear":
-        return (j / (k - 1)).view(1,1,1,k) if k > 1 else torch.ones(1,1,1,1, device=device, dtype=dtype)
-    w = (1 - torch.cos(torch.pi * (j / max(1, (k - 1))))) * 0.5
-    return w.view(1,1,1,k)
-
-@torch.no_grad()
-def seam_close_one_side(img: torch.Tensor, k: int = 12, window: str = "cosine", side: str = "left") -> torch.Tensor:
+def latent_tail_extend(x: torch.Tensor, K_lat: int) -> torch.Tensor:
     """
-    单侧融合（推荐用于 360 播放器）：只在 left 或 right 一侧做 cross-fade，另一侧保持原样。
-    img: [B,C,H,W] in [0,1] 或 [-1,1]
+    在 latent 域做“右侧扩宽”：把左侧 K_lat 列复制到最右侧。
+    输入 x: [B, C, H, W]，输出: [B, C, H, W+K_lat]
     """
-    B, C, H, W = img.shape
-    if W < 2 or k <= 0: return img
-    k = max(1, min(int(k), W // 2))
-    out = img.clone()
-    w = _make_window(k, img.device, img.dtype, window)
-
-    if side == "left":
-        L = img[..., :k]      # [B,C,H,k]
-        R = img[..., -k:]     # 对侧带
-        L_new = (1 - w) * L + w * R
-        out[..., :k] = L_new
-    else:
-        L = img[..., :k]
-        R = img[..., -k:]
-        w_rev = torch.flip(w, dims=[-1])
-        R_new = (1 - w_rev) * R + w_rev * L
-        out[..., -k:] = R_new
-    return out
-
-@torch.no_grad()
-def seam_close_symmetric(img: torch.Tensor, k: int = 16, window: str = "cosine") -> torch.Tensor:
-    """
-    对称 cross-fade（不推荐给播放器，因为会产生“两条”视觉带）。
-    """
-    B, C, H, W = img.shape
-    if W < 2 or k <= 0: return img
-    k = max(1, min(int(k), W // 2))
-    L, R = img[..., :k], img[..., -k:]
-    w     = _make_window(k, img.device, img.dtype, window)
-    w_rev = torch.flip(w, dims=[-1])
-    out = img.clone()
-    out[..., :k]  = (1 - w)    * L + w     * R
-    out[..., -k:] = (1 - w_rev)* R + w_rev * L
-    return out
-
-@torch.no_grad()
-def average_1px_rgb(img: torch.Tensor) -> torch.Tensor:
-    """严格周期闭合：把最左/最右 1 列取均值写回两侧。"""
-    if img.ndim != 4 or img.shape[-1] < 2: return img
-    c0, c1 = img[..., :1], img[..., -1:]
-    avg = 0.5 * (c0 + c1)
-    out = img.clone()
-    out[..., :1]  = avg
-    out[..., -1:] = avg
-    return out
-# ============================================================
+    if K_lat is None or K_lat <= 0:
+        return x
+    assert x.dim() == 4
+    W = x.shape[-1]
+    K_lat = min(K_lat, W)
+    head = x[..., :K_lat]
+    return torch.cat([x, head], dim=-1)
 
 
 @torch.no_grad()
@@ -100,168 +72,272 @@ def process(
     stream_path: str,
     guidance_scale: float,
     c_crossattn: List[torch.Tensor],
-    extend_px: int,
-    close_mode: str,
-    close_k: int,
-    close_window: str,
-    do_average_1px: bool,
+    extend_px: int = -1,
+    resize_mode: str = "original",  # original / train
 ) -> Tuple[List[np.ndarray], float]:
 
+    assert len(imgs) > 0
     n_samples = len(imgs)
-    sampler_obj = SpacedSampler(model, var_type="fixed_small") if sampler == "ddpm" else DDIMSampler(model)
 
-    # 1) pad→环绕扩展（像素域）
-    imgs_pad = [pad(x, scale=64) for x in imgs]
-    k = int(extend_px)
-    if k % 64 != 0:  # 为了保证后面 VAE/UNet 步幅对齐
-        k = max(0, (k // 64) * 64)
-    imgs_ext = [hwrap_extend_np(x, k) for x in imgs_pad]
+    # 原始图分辨率（仅用于 original 模式；train 模式只是“数据来源”的尺寸）
+    H0_orig, W0_orig = imgs[0].shape[:2]
 
-    control = torch.tensor(np.stack(imgs_ext) / 255.0, dtype=torch.float32, device=model.device).clamp_(0, 1)
-    control = einops.rearrange(control, "n h w c -> n c h w").contiguous()
+    # 根据模式决定工作分辨率：
+    # - original: 工作分辨率 = 原图尺寸
+    # - train   : 工作分辨率 = 512x256（训练分辨率）
+    imgs_proc = imgs
+    if resize_mode == "train":
+        target_w, target_h = 1024, 512
+        imgs_proc = []
+        for arr in imgs:
+            h, w = arr.shape[:2]
+            if h == target_h and w == target_w:
+                imgs_proc.append(arr)
+            else:
+                pil = Image.fromarray(arr)
+                pil = pil.resize((target_w, target_h), Image.BICUBIC)
+                imgs_proc.append(np.array(pil))
 
-    H, W_ext = control.shape[-2:]
-    W_orig   = imgs_pad[0].shape[1]
-    assert W_ext == W_orig + 2 * k
+    # 工作分辨率（后续 pad / 解码 / 裁剪都按这个来）
+    H0_in, W0_in = imgs_proc[0].shape[:2]
 
-    # 2) 条件压缩 + 采样
-    bpp = model.apply_condition_compress(control, stream_path, H, W_ext)
+    # pad 到 64 的倍数（只在内部使用）
+    imgs_pad = [pad(x, scale=64) for x in imgs_proc]
+    x_np = np.stack(imgs_pad).astype(np.float32) / 255.0
+    x = torch.from_numpy(x_np).to(model.device)
+    x = einops.rearrange(x, "n h w c -> n c h w").contiguous()
+
+    B, C, H_pad, W_pad = x.shape
+    assert B == n_samples
+
+    # === bpp 口径：
+    # - original: 使用原始分辨率 H0_orig × W0_orig
+    # - train   : 使用工作分辨率 H0_in × W0_in（即 256×512）
+    if resize_mode == "train":
+        H_bpp, W_bpp = H0_in, W0_in
+    else:
+        H_bpp, W_bpp = H0_orig, W0_orig
+
+    bpp = model.apply_condition_compress(
+        x,
+        stream_path=stream_path,
+        H=H_bpp,
+        W=W_bpp,
+    )
+
+    # 解码出 c_latent, guide_hint（latent+控制信息）
     c_latent, guide_hint = model.apply_condition_decompress(stream_path)
-    cond = {"c_latent": [c_latent], "c_crossattn": c_crossattn, "guide_hint": guide_hint}
+    c_latent = c_latent.to(model.device)
+    if guide_hint is not None:
+        guide_hint = guide_hint.to(model.device)
 
-    shape = (n_samples, 4, H // 8, W_ext // 8)
-    t = torch.ones((n_samples,), device=model.device, dtype=torch.long) * model.used_timesteps - 1
-    x_T = model.q_sample(x_start=c_latent, t=t, noise=torch.randn(shape, device=model.device, dtype=torch.float32))
+    # 像素扩展宽度 -> latent 扩展宽度
+    if extend_px is not None and extend_px >= 0:
+        K_pix = int(extend_px)
+    else:
+        K_pix = int(getattr(model, "extend_k_pix_default", 0))
+    K_pix = max(0, K_pix)
+
+    ds = int(getattr(model, "first_stage_downsample", 8))
+    K_lat = K_pix // max(ds, 1)
+
+    # latent 右侧扩宽（只在 refine 阶段使用）
+    if model.is_refine and K_lat > 0:
+        c_latent_ext = latent_tail_extend(c_latent, K_lat)
+        guide_hint_ext = (
+            latent_tail_extend(guide_hint, K_lat)
+            if guide_hint is not None else None
+        )
+    else:
+        c_latent_ext = c_latent
+        guide_hint_ext = guide_hint
+        K_pix = 0  # 没有扩展，方便下游调试
+
+    cond = {
+        "c_latent": [c_latent_ext],
+        "c_crossattn": c_crossattn,
+        "guide_hint": guide_hint_ext,
+    }
+
+    b, cch, h_lat, w_lat = c_latent_ext.shape
+    shape = (b, model.channels, h_lat, w_lat)
+
+    # 构造起始噪声（从 c_latent_ext 出发加噪，然后再去噪）
+    t = torch.ones((b,), device=model.device, dtype=torch.long) * (model.used_timesteps - 1)
+    noise = torch.randn_like(c_latent_ext)
+    x_T = model.q_sample(x_start=c_latent_ext, t=t, noise=noise)
+
+    sampler_obj = SpacedSampler(model, var_type="fixed_small") if sampler == "ddpm" else DDIMSampler(model)
 
     if isinstance(sampler_obj, SpacedSampler):
         samples = sampler_obj.sample(
-            steps, shape, cond,
+            steps,
+            shape,
+            cond,
             unconditional_guidance_scale=guidance_scale,
-            unconditional_conditioning=None, cond_fn=None, x_T=x_T
+            unconditional_conditioning=None,
+            cond_fn=None,
+            x_T=x_T,
         )
     else:
         samples, _ = sampler_obj.sample(
-            S=steps, batch_size=shape[0], shape=shape[1:],
-            conditioning=cond, unconditional_conditioning=None,
-            unconditional_guidance_scale=guidance_scale, x_T=x_T, eta=0
+            S=steps,
+            batch_size=shape[0],
+            shape=shape[1:],
+            conditioning=cond,
+            unconditional_conditioning=None,
+            unconditional_guidance_scale=guidance_scale,
+            x_T=x_T,
+            eta=0.0,
         )
 
-    # 3) 解码 & 裁回中心（回到 pad 后原宽度）
-    x = model.decode_first_stage(samples)  # [-1,1], [B,3,H,W_ext]
-    if k > 0:
-        x = x[:, :, :, k:-k]  # 裁回
-        if close_mode == "one_side" and close_k > 0:
-            x = seam_close_one_side(x, k=int(close_k), window=close_window, side="left")
-        elif close_mode == "symmetric" and close_k > 0:
-            x = seam_close_symmetric(x, k=int(close_k), window=close_window)
-    if do_average_1px:
-        x = average_1px_rgb(x)
+    # 告诉 VAE pad 后的原始宽度（用于内部融合逻辑）
+    model._static_W0_pix = int(W_pad)
 
-    # 4) to [0,1] & numpy
-    x = ((x + 1) / 2).clamp(0, 1)
-    x = (einops.rearrange(x, "b c h w -> b h w c") * 255.0).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
-    preds = [x[i] for i in range(n_samples)]
-    return preds, float(bpp)
+    # 解码 + 去 pad + 裁剪回工作分辨率（H0_in, W0_in）
+    x_rec_full = model.decode_first_stage(samples)
+    x_rec_pad = x_rec_full[..., :H_pad, :W_pad]
+    x_rec = x_rec_pad[..., :H0_in, :W0_in]
+
+    # 反归一化到 uint8
+    x_out = ((x_rec + 1.0) / 2.0).clamp(0.0, 1.0)
+    x_out = einops.rearrange(x_out, "b c h w -> b h w c")
+    x_out = (x_out * 255.0).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
+
+    # 最终输出：
+    # - original: 工作分辨率=原图分辨率 ⇒ 输出=原图分辨率
+    # - train   : 工作分辨率=512x256 ⇒ 输出=512x256
+    preds_final = [x_out[i] for i in range(n_samples)]
+
+    return preds_final, float(bpp)
 
 
 def parse_args() -> Namespace:
     p = ArgumentParser()
-    p.add_argument("--ckpt",
-        default="/opt/dev/RDEIC-main/logs/independent/2_2/lightning_logs/version_0/checkpoints/last.ckpt",
-        type=str)
-    p.add_argument("--config", default="configs/model/rdeic.yaml", type=str)
-    p.add_argument("--input", type=str, default="/opt/dev/RDEIC-main/assets/demo_images")
+
+    p.add_argument("--ckpt", type=str, default="./weight/step1_1_12/last.ckpt")
+    p.add_argument("--config", type=str, default="configs/model/rdeic.yaml")
+    p.add_argument("--input", type=str, default="./dataset/test")
+    p.add_argument("--output", type=str, default="output/1_1_12")
     p.add_argument("--sampler", type=str, default="ddpm", choices=["ddpm", "ddim"])
-    p.add_argument("--steps", default=5, type=int)
-    p.add_argument("--guidance_scale", default=1.0, type=float)
-    p.add_argument("--output", type=str, default="results/")
+    p.add_argument("--steps", type=int, default=5)
+    p.add_argument("--guidance_scale", type=float, default=1.0)
     p.add_argument("--seed", type=int, default=231)
     p.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
+    p.add_argument("--extend_px", type=int, default=-1)
 
-    # 预处理冗余像素 & 收尾
-    p.add_argument("--extend_px", type=int, default=128, help="左右冗余带宽（像素），建议 64/128")
-    p.add_argument("--close_mode", type=str, default="one_side", choices=["off","one_side","symmetric"])
-    p.add_argument("--close_k", type=int, default=12, help="收尾带宽（像素域），8~16 较合适")
-    p.add_argument("--close_window", type=str, default="cosine", choices=["linear","cosine"])
-    p.add_argument("--average_1px", action="store_true", default=True, help="是否做严格周期 1px 闭合")
+    # 新增：是否在“训练分辨率 512x256”下做扩散
+    # original: 按原图尺寸推理（bpp/输出都基于原图分辨率）
+    # train   : 先缩放到 512x256，在该域内扩散和评估（bpp/输出都基于 512x256）
+    p.add_argument(
+        "--resize_mode",
+        type=str,
+        default="original",
+        choices=["original", "train"],
+        help="original: 按原图分辨率推理; train: 缩放到 512x256 域内扩散与评估",
+    )
+
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     pl.seed_everything(args.seed)
+
     if args.device == "cpu":
         disable_xformers()
 
-    # 读取配置并在实例化前强制禁用 seam_blend
     cfg = OmegaConf.load(args.config)
-    try:
-        cfg.params.seam_blend.enabled = False
-        cfg.params.seam_blend.runtime_apply = False
-        cfg.params.seam_blend_train.enabled = False
-        cfg.params.seam_blend_train.online_joint = False
-    except Exception:
-        pass
-
     model: RDEIC = instantiate_from_config(cfg)
 
-    # 加载 ckpt：若 seam_blend 缺失则自动降级为 non-strict
     ckpt = torch.load(args.ckpt, map_location="cpu")
     try:
         load_state_dict(model, ckpt, strict=True)
     except RuntimeError as e:
-        if "seam_blend" in str(e):
-            print("[WARN] seam_blend weights missing; loading with strict=False.")
-            load_state_dict(model, ckpt, strict=False)
-        else:
-            raise
+        print(f"[WARN] strict=True load failed: {e}")
+        print("[WARN] retry with strict=False ...")
+        load_state_dict(model, ckpt, strict=False)
 
-    # 确保推理期不触发小网
-    if hasattr(model, "seam_enabled"):        model.seam_enabled = False
-    if hasattr(model, "seam_runtime_apply"):  model.seam_runtime_apply = False
-
-    model.preprocess_model.update(force=True)
+    if hasattr(model, "preprocess_model"):
+        model.preprocess_model.update(force=True)
     model.freeze()
     model.to(args.device).eval()
 
+    # 这里默认空文本条件；你之后要接语义 prompt 的话可以在这里改
     c_crossattn = [model.get_learned_conditioning([""])]
 
-    # 收集输入
     src = args.input
-    paths = list_image_files(src, follow_links=True) if os.path.isdir(src) else [src]
+    if os.path.isdir(src):
+        paths = list_image_files(src, follow_links=True)
+    else:
+        paths = [src]
+
     assert len(paths) > 0, f"No images found under {src}"
     os.makedirs(args.output, exist_ok=True)
 
+    print(f"[INFO] device={args.device}")
     print(f"[INFO] steps={args.steps} sampler={args.sampler}")
-    print(f"[INFO] extend_px={args.extend_px}  close_mode={args.close_mode} k={args.close_k} window={args.close_window} avg1px={args.average_1px}")
+    print(f"[INFO] extend_px={args.extend_px} (YAML 默认={getattr(model, 'extend_k_pix_default', 'N/A')})")
+    print(f"[INFO] resize_mode={args.resize_mode}  (original=原图域, train=512x256 域)")
 
     bpps = []
+    times = []   # 记录每张图耗时
+
+    # 逐张推理
     for file_path in paths:
         img = Image.open(file_path).convert("RGB")
         x = np.array(img)
 
-        rel = os.path.relpath(file_path, start=src) if os.path.isdir(src) else os.path.basename(file_path)
-        save_path = os.path.join(args.output, os.path.splitext(rel)[0] + ".png")
+        rel = (
+            os.path.relpath(file_path, start=src)
+            if os.path.isdir(src)
+            else os.path.basename(file_path)
+        )
+        save_path = os.path.join(
+            args.output,
+            os.path.splitext(rel)[0] + ".png",
+        )
+
         parent_path, stem, _ = get_file_name_parts(save_path)
-        stream_parent_path = os.path.join(parent_path, 'data')
+        stream_parent_path = os.path.join(parent_path, "data")
         stream_path = os.path.join(stream_parent_path, stem)
+
         os.makedirs(parent_path, exist_ok=True)
         os.makedirs(stream_parent_path, exist_ok=True)
 
-        preds, bpp = process(
-            model, [x], steps=args.steps, sampler=args.sampler,
-            stream_path=stream_path, guidance_scale=args.guidance_scale, c_crossattn=c_crossattn,
-            extend_px=args.extend_px, close_mode=args.close_mode, close_k=args.close_k,
-            close_window=args.close_window, do_average_1px=bool(args.average_1px)
+        # ====== 开始计时 ======
+        t0 = time.time()
+
+        preds_final, bpp = process(
+            model=model,
+            imgs=[x],
+            sampler=args.sampler,
+            steps=args.steps,
+            stream_path=stream_path,
+            guidance_scale=args.guidance_scale,
+            c_crossattn=c_crossattn,
+            extend_px=args.extend_px,
+            resize_mode=args.resize_mode,
         )
-        pred_pad = preds[0]
-        pred = pred_pad[:img.height, :img.width, :]  # 去掉最初 pad
+
+        img_final = preds_final[0]
+        Image.fromarray(img_final).save(save_path)
+
+        t1 = time.time()
+        dt = t1 - t0   # 单张耗时
+        times.append(dt)
+        # ====== 结束计时 ======
 
         bpps.append(bpp)
-        Image.fromarray(pred).save(save_path)
-        print(f"[SAVE] {save_path}  bpp={bpp:.4f}")
+        print(f"[SAVE] {save_path}  bpp={bpp:.4f}  time={dt:.3f}s")
 
-    print(f"[DONE] avg bpp: {float(sum(bpps)/len(bpps)):.4f}")
+    if bpps:
+        avg_bpp = float(sum(bpps) / len(bpps))
+        print(f"[DONE] avg bpp: {avg_bpp:.4f}")
+
+    if times:
+        avg_time = float(sum(times) / len(times))
+        print(f"[DONE] avg time per image: {avg_time:.3f}s")
 
 
 if __name__ == "__main__":

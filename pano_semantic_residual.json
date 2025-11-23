@@ -1,0 +1,156 @@
+{
+    "/data/xyy/Lucas/PanULIC/dataset/test/000.jpg": {
+        "semantic_residual": [
+            "amusement park rides",
+            "colorful umbrellas",
+            "beachgoers",
+            "sandcastle structures",
+            "boardwalk details",
+            "distant coastline",
+            "street vendors",
+            "lifeguard tower"
+        ],
+        "texture_residual": [
+            "water surface reflections",
+            "sand grain texture",
+            "boardwalk wood grain",
+            "clothing patterns",
+            "building facade details",
+            "sky color variation",
+            "wave foam texture",
+            "vegetation details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/001.jpg": {
+        "semantic_residual": [
+            "beach rocks",
+            "vegetation details",
+            "sandy path",
+            "information sign",
+            "distant beachgoers",
+            "shoreline structures",
+            "ocean waves",
+            "horizon line"
+        ],
+        "texture_residual": [
+            "sand texture",
+            "grass blade details",
+            "water surface reflections",
+            "color gradients in sky",
+            "sign text patterns",
+            "weathered wood grain",
+            "stone surface patterns",
+            "fine details in clothing"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/002.jpg": {
+        "semantic_residual": [
+            "distant shoreline features",
+            "rocky outcrop details",
+            "surrounding trees",
+            "foliage variations",
+            "ground surface patterns",
+            "human gestures",
+            "panoramic view elements",
+            "sky details"
+        ],
+        "texture_residual": [
+            "stone wall texture",
+            "grass patterns",
+            "ocean wave details",
+            "tree bark patterns",
+            "sunlight reflections",
+            "sky gradient",
+            "plant leaf textures",
+            "distant water surface shimmer"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/003.jpg": {
+        "semantic_residual": [
+            "ocean waves",
+            "distant coastline",
+            "hillside trees",
+            "people posing",
+            "grass field",
+            "sandy hill",
+            "visible sky clouds",
+            "beach area"
+        ],
+        "texture_residual": [
+            "grass textures",
+            "ocean surface reflections",
+            "smooth sand textures",
+            "tree bark patterns",
+            "sky gradient",
+            "human clothing details",
+            "shadows on ground",
+            "fine details in foliage"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/004.jpg": {
+        "semantic_residual": [
+            "detailed building contours",
+            "complex stair structure",
+            "individual tree shapes",
+            "distinct pathways",
+            "clear signage",
+            "varied plant species",
+            "pedestrian features",
+            "architectural reflections"
+        ],
+        "texture_residual": [
+            "tree bark texture",
+            "paving stone patterns",
+            "glass reflections",
+            "metal railing details",
+            "plant leaf textures",
+            "shadow gradients",
+            "wood grain",
+            "building facade details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/005.jpg": {
+        "semantic_residual": [
+            "stained glass windows",
+            "church altar",
+            "ornate ceiling details",
+            "wooden pews",
+            "religious icons",
+            "decorative columns",
+            "murals on walls",
+            "chandeliers"
+        ],
+        "texture_residual": [
+            "stone floor patterns",
+            "wood grain on pews",
+            "intricate ceiling texture",
+            "fabric texture of altar cloth",
+            "light shining through glass",
+            "weathered wood edges",
+            "subtle color variations",
+            "reflections on polished surfaces"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/006.jpg": {
+        "semantic_residual": [
+            "bar shelves",
+            "liquor bottles",
+            "cocktail glass",
+            "wooden bar countertop",
+            "bar stools",
+            "large windows",
+            "cityscape view",
+            "lighting fixtures"
+        ],
+        "texture_residual": [
+            "glass reflections",
+            "wood grain patterns",
+            "liquid surface texture",
+            "light glow variation",
+            "wall patterns",
+            "countertop finish",
+            "fabric texture",
+            "ambient lighting gradation"
+        ]
+    }
+}

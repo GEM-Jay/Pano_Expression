@@ -10,10 +10,11 @@ data:
 model:
   config: ./configs/model/rdeic.yaml
    # 启动二阶段的检查点，一阶段设为 "~"
-  resume: /opt/dev/RDEIC-main/logs/independent/2_1/lightning_logs/version_0/checkpoints/step=99999.ckpt
+#  resume: /data/xyy/Lucas/PanULIC/weight/step1_0.002/last.ckpt
+#  resume:  /data/xyy/Lucas/PanULIC/weight/step1_24/last.ckpt
+  resume: /data/xyy/Lucas/PanULIC/weight/step1_1_12/last.ckpt
   params:
     val_eval_metrics: true   # ← 开启验证指标计算
-    val_sample_steps: 5
 
 lightning:
   seed: 231
@@ -21,23 +22,24 @@ lightning:
   trainer:
     accelerator: gpu
     devices: [0]
-    precision: 16
-    default_root_dir: ./logs/independent/2_2_seamless_2
-    max_epochs: 140
-    check_val_every_n_epoch: 3
+    precision: 32
+    default_root_dir: ./logs/independent/seamless_step2_1_12_debug
+    max_epochs: 100
+    check_val_every_n_epoch: 4
     log_every_n_steps: 200
     accumulate_grad_batches: 1
   
   callbacks:
-    - target: model.callbacks.ImageLogger
-      params:
-        log_every_n_steps: 1000
-        log_start_step: 0
-        max_images_each_step: 2
-        log_images_kwargs: ~
+#    - target: model.callbacks.ImageLogger
+#      params:
+#        log_every_n_steps: 1000
+#        log_start_step: 0
+#        max_images_each_step: 2
+#        log_images_kwargs: ~
 
     # 用“综合分 = PSNR - 5×LPIPS”保存表现 Top-5 的模型
     # 如果更想用 PSNR：把 monitor 改为 "val/psnr"，mode 改为 "max"，filename 里字段也改下
+    # 第二阶段
     - target: model.callbacks.ModelCheckpoint
       params:
          monitor: "val/score_combo"
@@ -47,4 +49,16 @@ lightning:
          auto_insert_metric_name: false
          filename: "ep{epoch:03d}-gs{global_step}-combo{val_score_combo:.3f}"
          every_n_epochs: 1         # 仅在验证后基于指标保存
+
+#
+#    - target: model.callbacks.ModelCheckpoint
+#      params:
+#         monitor: "val/psnr"
+#         mode: "max"
+#         save_top_k: 5
+#         save_last: true
+#         auto_insert_metric_name: false
+#         filename: "ep{epoch:03d}-gs{global_step}-psnr{val_psnr:.3f}"
+#         every_n_epochs: 1
+
 

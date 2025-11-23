@@ -3,24 +3,25 @@ dataset:
   target: dataset.licdataset.LICDataset
   params:
     file_list: ./datalists/train.list
-    out_size: 0            # 不裁剪整图
-    crop_type: "none"
-    use_hflip: False       # ERP 不做水平翻转
+    out_size: 0          # 不裁剪整图
+    crop_type: none
+    use_hflip: True       # ERP 不做水平翻转
     use_rot: False         # ERP 不旋转
+
     resize_cfg:
-      enabled: true
-      target_w: 512        # 与 valid 保持一致；显存允许可改为 768/1024/1536/2048（必须是 64 的倍数）
+      enabled: True
+      target_w: 512     # 与 valid 保持一致；显存允许可改为 768/1024/1536/2048（必须是 64 的倍数）
 
 batch_transform:
   target: dataset.batch_transform.RollThenExtendBatchTransform
   params:
     roll_max_frac: 0.2
-    extend_frac: 0   # 拓宽 ~10% （按 W 对齐到 64 的倍数）
-    align: 64
+    extend_frac: 0   # 像素侧拓宽 ~10% （按 W 对齐到 64 的倍数）
+    align: 0  #对齐到多少倍的像素
     keys: ["jpg"]
 
 data_loader:
-  batch_size: 2
+  batch_size: 7
   num_workers: 8
   shuffle: true
   drop_last: true
