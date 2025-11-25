@@ -4,7 +4,7 @@ RDEIC 推理脚本（第二阶段 / refine 阶段）
 
 新管线要点（本脚本逻辑）：
 
-1) 读入全景图，必要时缩放到工作分辨率（例如 train 模式下 512x256）；
+1) 读入全景图，必要时缩放到工作分辨率（例如 train 模式下 1024x512）；
 2) 再 pad 到 64 的倍数（只在推理内部使用）；
 3) 直接对 pad 后的图做压缩（码流只覆盖当前工作分辨率 H0_in×W0_in）；
 4) 从码流解出 c_latent, guide_hint；
@@ -17,13 +17,17 @@ RDEIC 推理脚本（第二阶段 / refine 阶段）
 9) 只保存一张最终图（融合 + 裁剪回工作分辨率的 ERP）。
 
 说明：
-- 当 resize_mode="train" 时，工作分辨率为 512x256：
-    * 压缩/解码/扩散都在 512x256 域内进行；
-    * bpp 以 512x256 的像素数为分母；
-    * 最终输出图像为 512x256。
+- 当 resize_mode="train" 时，工作分辨率为 1024x512：
+    * 压缩/解码/扩散都在 1024x512 域内进行；
+    * bpp 以 1024x512 的像素数为分母；
+    * 最终输出图像为 1024x512。
 - 当 resize_mode="original" 时，工作分辨率为输入原图分辨率：
     * bpp 以原图像素数为分母；
     * 输出分辨率为原图分辨率。
+
+本版额外修改：
+- 强制关闭 LatentDiffusion 的 VAE 分块处理（split_input_params = None），
+  让 encode/decode 都走整图路径，方便排查棋盘/点阵伪影。
 """
 
 import os
@@ -38,7 +42,7 @@ import einops
 import pytorch_lightning as pl
 from PIL import Image
 from omegaconf import OmegaConf
-import time  # 用于计时
+import time  # 计时
 
 from ldm.xformers_state import disable_xformers
 from model.spaced_sampler_relay import SpacedSampler
@@ -47,6 +51,7 @@ from model.rdeic import RDEIC
 from utils.common import instantiate_from_config, load_state_dict
 from utils.file import list_image_files, get_file_name_parts
 from utils.image import pad
+from utils.residual_prompt import ResidualPromptDB  # 残差语义支持
 
 
 def latent_tail_extend(x: torch.Tensor, K_lat: int) -> torch.Tensor:
@@ -84,7 +89,7 @@ def process(
 
     # 根据模式决定工作分辨率：
     # - original: 工作分辨率 = 原图尺寸
-    # - train   : 工作分辨率 = 512x256（训练分辨率）
+    # - train   : 工作分辨率 = 1024x512（与训练保持一致）
     imgs_proc = imgs
     if resize_mode == "train":
         target_w, target_h = 1024, 512
@@ -112,7 +117,7 @@ def process(
 
     # === bpp 口径：
     # - original: 使用原始分辨率 H0_orig × W0_orig
-    # - train   : 使用工作分辨率 H0_in × W0_in（即 256×512）
+    # - train   : 使用工作分辨率 H0_in × W0_in
     if resize_mode == "train":
         H_bpp, W_bpp = H0_in, W0_in
     else:
@@ -204,9 +209,9 @@ def process(
     x_out = einops.rearrange(x_out, "b c h w -> b h w c")
     x_out = (x_out * 255.0).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
 
-    # 最终输出：
+    # 输出：
     # - original: 工作分辨率=原图分辨率 ⇒ 输出=原图分辨率
-    # - train   : 工作分辨率=512x256 ⇒ 输出=512x256
+    # - train   : 工作分辨率=1024x512 ⇒ 输出=1024x512
     preds_final = [x_out[i] for i in range(n_samples)]
 
     return preds_final, float(bpp)
@@ -215,10 +220,10 @@ def process(
 def parse_args() -> Namespace:
     p = ArgumentParser()
 
-    p.add_argument("--ckpt", type=str, default="./weight/step1_1_12/last.ckpt")
+    p.add_argument("--ckpt", type=str, default="./weight/step2_1_12/last.ckpt")
     p.add_argument("--config", type=str, default="configs/model/rdeic.yaml")
     p.add_argument("--input", type=str, default="./dataset/test")
-    p.add_argument("--output", type=str, default="output/1_1_12")
+    p.add_argument("--output", type=str, default="output/with_text")
     p.add_argument("--sampler", type=str, default="ddpm", choices=["ddpm", "ddim"])
     p.add_argument("--steps", type=int, default=5)
     p.add_argument("--guidance_scale", type=float, default=1.0)
@@ -226,15 +231,20 @@ def parse_args() -> Namespace:
     p.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
     p.add_argument("--extend_px", type=int, default=-1)
 
-    # 新增：是否在“训练分辨率 512x256”下做扩散
-    # original: 按原图尺寸推理（bpp/输出都基于原图分辨率）
-    # train   : 先缩放到 512x256，在该域内扩散和评估（bpp/输出都基于 512x256）
     p.add_argument(
         "--resize_mode",
         type=str,
         default="original",
         choices=["original", "train"],
-        help="original: 按原图分辨率推理; train: 缩放到 512x256 域内扩散与评估",
+        help="original: 按原图分辨率推理; train: 缩放到 1024x512 域内扩散与评估",
+    )
+
+    # 残差语义 JSON（可选）
+    p.add_argument(
+        "--residual_json",
+        type=str,
+        default=None,
+        help="残差语义 JSON 文件路径；若为 None，则不使用文本残差信息",
     )
 
     return p.parse_args()
@@ -263,8 +273,23 @@ def main() -> None:
     model.freeze()
     model.to(args.device).eval()
 
-    # 这里默认空文本条件；你之后要接语义 prompt 的话可以在这里改
-    c_crossattn = [model.get_learned_conditioning([""])]
+    # ★ 关键：禁用 VAE 分块处理（encode + decode 都走整图）
+    if hasattr(model, "split_input_params"):
+        print(f"[INFO] disable VAE split_input_params (was {model.split_input_params})")
+        model.split_input_params = None
+
+    # ===== 残差语义数据库（可选） =====
+    res_db = None
+    if args.residual_json is not None:
+        if os.path.isfile(args.residual_json):
+            res_db = ResidualPromptDB(args.residual_json)
+            try:
+                n_entries = len(getattr(res_db, "db", {}))
+            except Exception:
+                n_entries = -1
+            print(f"[INFO] residual_json loaded: {args.residual_json} (entries={n_entries})")
+        else:
+            print(f"[WARN] residual_json not found: {args.residual_json}, 忽略文本残差")
 
     src = args.input
     if os.path.isdir(src):
@@ -278,7 +303,11 @@ def main() -> None:
     print(f"[INFO] device={args.device}")
     print(f"[INFO] steps={args.steps} sampler={args.sampler}")
     print(f"[INFO] extend_px={args.extend_px} (YAML 默认={getattr(model, 'extend_k_pix_default', 'N/A')})")
-    print(f"[INFO] resize_mode={args.resize_mode}  (original=原图域, train=512x256 域)")
+    print(f"[INFO] resize_mode={args.resize_mode}  (original=原图域, train=1024x512 域)")
+    if res_db is not None:
+        print("[INFO] text residual conditioning ENABLED")
+    else:
+        print("[INFO] text residual conditioning DISABLED (no residual_json)")
 
     bpps = []
     times = []   # 记录每张图耗时
@@ -305,6 +334,19 @@ def main() -> None:
         os.makedirs(parent_path, exist_ok=True)
         os.makedirs(stream_parent_path, exist_ok=True)
 
+        # 文本条件（base + residual，可选）
+        if res_db is not None:
+            img_abs = os.path.abspath(file_path)
+            residual_prompt = res_db.get_full_prompt(img_abs)
+            if residual_prompt:
+                c_base = model.get_learned_conditioning([""])
+                c_res  = model.get_learned_conditioning([residual_prompt])
+                c_crossattn = [c_base, c_res]
+            else:
+                c_crossattn = [model.get_learned_conditioning([""])]
+        else:
+            c_crossattn = [model.get_learned_conditioning([""])]
+
         # ====== 开始计时 ======
         t0 = time.time()
 
@@ -326,7 +368,6 @@ def main() -> None:
         t1 = time.time()
         dt = t1 - t0   # 单张耗时
         times.append(dt)
-        # ====== 结束计时 ======
 
         bpps.append(bpp)
         print(f"[SAVE] {save_path}  bpp={bpp:.4f}  time={dt:.3f}s")

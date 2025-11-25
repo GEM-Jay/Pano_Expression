@@ -11,6 +11,7 @@ dataset:
     resize_cfg:
       enabled: True
       target_w: 512     # 与 valid 保持一致；显存允许可改为 768/1024/1536/2048（必须是 64 的倍数）
+    residual_json: /data/xyy/Lucas/PanULIC/pano_semantic_residual.json
 
 batch_transform:
   target: dataset.batch_transform.RollThenExtendBatchTransform

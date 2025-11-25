@@ -779,7 +779,7 @@ class RDEIC(LatentDiffusion):
         # 真正的 latent 扩展在训练 / 采样阶段执行，这里只传回原始 c_latent 和像素扩展量
         K_true_pix = int(self._last_extend_k_pix)
 
-        return x, dict(
+        cond_out = dict(
             c_crossattn=[c],
             c_latent=[c_latent],
             bpp=bpp,
@@ -790,6 +790,33 @@ class RDEIC(LatentDiffusion):
             orig_size=torch.tensor([H0, W0], device=target.device),
             extend_k_pix=torch.tensor([K_true_pix], device=target.device),
         )
+
+        # ====== 新增：refine 阶段的“语义残差文本条件” ======
+        # 约定：dataloader 在 batch 里提供 batch["residual_prompt"]：
+        #   - 可以是长度为 N 的 list[str] / tuple[str]
+        #   - 或单个字符串（会对整个 batch 复用同一个 prompt）
+        if self.is_refine and isinstance(batch, dict) and ("residual_prompt" in batch):
+            residual_prompts = batch["residual_prompt"]
+
+            if isinstance(residual_prompts, (list, tuple)):
+                prompts = [str(p) for p in residual_prompts]
+                N = x.shape[0]
+                if len(prompts) != N:
+                    if len(prompts) == 1:
+                        prompts = prompts * N
+                    elif len(prompts) > N:
+                        prompts = prompts[:N]
+                    else:
+                        prompts = prompts + [prompts[-1]] * (N - len(prompts))
+            else:
+                N = x.shape[0]
+                prompts = [str(residual_prompts)] * N
+
+            # 用 LatentDiffusion 自带的文本 encoder，保证维度和原 caption 完全一致
+            c_residual = self.get_learned_conditioning(prompts)
+            cond_out["c_crossattn"].append(c_residual)
+
+        return x, cond_out
 
     # --------- 扩宽后前向（diffusion） ---------
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):

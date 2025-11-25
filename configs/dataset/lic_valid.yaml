@@ -11,6 +11,7 @@ dataset:
     resize_cfg:            # 与训练集统一，避免分布偏移
       enabled: true
       target_w: 1024        # 与训练配置一致
+    residual_json: /data/xyy/Lucas/PanULIC/pano_semantic_residual.json
 
 data_loader:
   batch_size: 5

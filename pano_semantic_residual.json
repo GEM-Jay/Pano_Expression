@@ -1,134 +1,138 @@
 {
     "/data/xyy/Lucas/PanULIC/dataset/test/000.jpg": {
         "semantic_residual": [
-            "amusement park rides",
-            "colorful umbrellas",
-            "beachgoers",
-            "sandcastle structures",
-            "boardwalk details",
-            "distant coastline",
-            "street vendors",
-            "lifeguard tower"
+            "carnival ride structures",
+            "beachgoers and their activities",
+            "shoreline with details",
+            "colorful awnings",
+            "food stalls",
+            "distant buildings on the shoreline",
+            "sand patterns",
+            "festive lights"
         ],
         "texture_residual": [
-            "water surface reflections",
-            "sand grain texture",
-            "boardwalk wood grain",
-            "clothing patterns",
-            "building facade details",
-            "sky color variation",
-            "wave foam texture",
-            "vegetation details"
+            "wooden pier texture",
+            "ocean wave patterns",
+            "fabric textures of clothing",
+            "intricate details of light fixtures",
+            "grainy sand texture",
+            "smooth water surface reflections",
+            "vibrant color transitions",
+            "intricate patterns of umbrellas"
         ]
     },
     "/data/xyy/Lucas/PanULIC/dataset/test/001.jpg": {
         "semantic_residual": [
-            "beach rocks",
-            "vegetation details",
-            "sandy path",
+            "coastal rocks",
+            "sandy pathway",
             "information sign",
+            "grass patches",
             "distant beachgoers",
-            "shoreline structures",
+            "railing posts",
             "ocean waves",
-            "horizon line"
+            "shrubbery"
         ],
         "texture_residual": [
             "sand texture",
-            "grass blade details",
-            "water surface reflections",
-            "color gradients in sky",
-            "sign text patterns",
-            "weathered wood grain",
-            "stone surface patterns",
-            "fine details in clothing"
+            "rock surface details",
+            "vegetation patterns",
+            "water reflections",
+            "sign graphics",
+            "cloth texture",
+            "path markings",
+            "cloud variations"
         ]
     },
     "/data/xyy/Lucas/PanULIC/dataset/test/002.jpg": {
         "semantic_residual": [
-            "distant shoreline features",
-            "rocky outcrop details",
-            "surrounding trees",
-            "foliage variations",
-            "ground surface patterns",
-            "human gestures",
-            "panoramic view elements",
-            "sky details"
+            "distant shoreline details",
+            "people waving hands",
+            "visible sea waves",
+            "tree canopy shapes",
+            "foreground rocks",
+            "grassy edges",
+            "scenic viewpoint structure",
+            "coastal vegetation"
         ],
         "texture_residual": [
-            "stone wall texture",
-            "grass patterns",
-            "ocean wave details",
-            "tree bark patterns",
-            "sunlight reflections",
-            "sky gradient",
-            "plant leaf textures",
-            "distant water surface shimmer"
+            "rock surface texture",
+            "leaf patterns",
+            "water surface reflections",
+            "grass blade details",
+            "stone wall markings",
+            "horizon gradient",
+            "bark textures",
+            "clothing fabric details"
         ]
     },
     "/data/xyy/Lucas/PanULIC/dataset/test/003.jpg": {
         "semantic_residual": [
-            "ocean waves",
-            "distant coastline",
-            "hillside trees",
-            "people posing",
-            "grass field",
-            "sandy hill",
-            "visible sky clouds",
-            "beach area"
+            "lush green trees",
+            "distant ocean waves",
+            "sandy beach",
+            "mountain ridges",
+            "foreground grass patches",
+            "hillside flowers",
+            "small bush shapes",
+            "vibrant sky details"
         ],
         "texture_residual": [
-            "grass textures",
-            "ocean surface reflections",
-            "smooth sand textures",
+            "grass surface texture",
+            "ocean water ripples",
+            "rocky terrain detail",
+            "light and shadow gradients",
             "tree bark patterns",
-            "sky gradient",
-            "human clothing details",
-            "shadows on ground",
-            "fine details in foliage"
+            "beach sand grains",
+            "soft clouds texture",
+            "subtle color transitions"
         ]
     },
     "/data/xyy/Lucas/PanULIC/dataset/test/004.jpg": {
         "semantic_residual": [
-            "detailed building contours",
-            "complex stair structure",
-            "individual tree shapes",
-            "distinct pathways",
-            "clear signage",
-            "varied plant species",
-            "pedestrian features",
-            "architectural reflections"
+            "distinct building architecture",
+            "park pathways",
+            "detailed greenery",
+            "people walking",
+            "outdoor furniture",
+            "decorative planters",
+            "bike parking area",
+            "urban landscape elements"
         ],
         "texture_residual": [
-            "tree bark texture",
-            "paving stone patterns",
-            "glass reflections",
-            "metal railing details",
-            "plant leaf textures",
-            "shadow gradients",
-            "wood grain",
-            "building facade details"
+            "leaf textures",
+            "brick patterns",
+            "paving stone details",
+            "building reflections",
+            "sky color variations",
+            "stone surface texture",
+            "tree bark patterns",
+            "subtle shading on structures"
         ]
     },
     "/data/xyy/Lucas/PanULIC/dataset/test/005.jpg": {
         "semantic_residual": [
+            "detailed frescoes",
+            "ornate altar decorations",
             "stained glass windows",
-            "church altar",
-            "ornate ceiling details",
-            "wooden pews",
-            "religious icons",
-            "decorative columns",
-            "murals on walls",
-            "chandeliers"
+            "wooden pews arrangement",
+            "supporting columns",
+            "church organ pipes",
+            "altar flowers",
+            "lighting fixtures",
+            "raised platform",
+            "entryway details"
         ],
         "texture_residual": [
             "stone floor patterns",
             "wood grain on pews",
-            "intricate ceiling texture",
-            "fabric texture of altar cloth",
-            "light shining through glass",
-            "weathered wood edges",
-            "subtle color variations",
-            "reflections on polished surfaces"
+            "wall texture variations",
+            "ceiling details",
+            "light reflections",
+            "color gradients in windows",
+            "fabric textures of decor",
+            "stone surface roughness",
+            "intricate artwork details",
+            "shadows across the floor"
         ]
     },
     "/data/xyy/Lucas/PanULIC/dataset/test/006.jpg": {
@@ -136,21 +140,2086 @@
             "bar shelves",
             "liquor bottles",
             "cocktail glass",
-            "wooden bar countertop",
-            "bar stools",
-            "large windows",
-            "cityscape view",
+            "bar counter",
+            "window view",
+            "ceiling lights",
+            "patron figures",
+            "table coasters"
+        ],
+        "texture_residual": [
+            "wood grain texture",
+            "glass surface reflections",
+            "fabric texture",
+            "light glow",
+            "shadow patterns",
+            "floor details",
+            "wall texture",
+            "bottle labels"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/007.jpg": {
+        "semantic_residual": [
+            "stone castle walls",
+            "wooden building details",
+            "distant landscape",
+            "grassy patches",
+            "entrance doorway",
+            "rock formations",
+            "tree foliage",
+            "sky color transitions"
+        ],
+        "texture_residual": [
+            "rough stone texture",
+            "wooden texture",
+            "uneven ground surface",
+            "cloud texture",
+            "grass texture",
+            "subtle color variations",
+            "dirt path details",
+            "roof tile patterns"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/008.jpg": {
+        "semantic_residual": [
+            "mountain contours",
+            "boundary wall",
+            "vegetation details",
+            "rock formations",
+            "distant buildings",
+            "sky features",
+            "ground texture",
+            "pathway lines"
+        ],
+        "texture_residual": [
+            "stone surface patterns",
+            "cloud detail",
+            "foliage texture",
+            "ground granularity",
+            "wall brick texture",
+            "mountain shadows",
+            "sky gradient",
+            "weathering marks"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/009.jpg": {
+        "semantic_residual": [
+            "classroom clock",
+            "projector details",
+            "window view",
+            "classroom desk shapes",
+            "chair colors",
+            "wall textures",
+            "teacher's desk",
+            "floor pattern"
+        ],
+        "texture_residual": [
+            "ceiling tile details",
+            "fabric texture of chairs",
+            "table edge finish",
+            "wall paint texture",
+            "carpet fiber patterns",
+            "light reflection on surfaces",
+            "whiteboard surface",
+            "window frame design"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/010.jpg": {
+        "semantic_residual": [
+            "classroom furniture arrangement",
+            "yellow chair visibility",
+            "blackboards in detail",
+            "wall clock position",
+            "doorframe outline",
+            "projector location",
+            "window frame structure",
+            "flooring pattern"
+        ],
+        "texture_residual": [
+            "ceiling tile texture",
+            "fabric texture on chairs",
+            "surface finish of tables",
+            "light reflections on walls",
+            "carpet texture details",
+            "edges of blackboards",
+            "window glass clarity",
+            "color variation in furniture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/011.jpg": {
+        "semantic_residual": [
+            "classroom desks",
+            "classroom chairs",
+            "chalkboard details",
+            "window frames",
+            "light fixtures",
+            "clock face",
+            "instructor's desk",
+            "silhouettes of students"
+        ],
+        "texture_residual": [
+            "carpet fibers",
+            "ceiling texture",
+            "wall paint variation",
+            "wooden desk grain",
+            "paper stacks",
+            "chair cushion patterns",
+            "fluorescent light reflections",
+            "shadows on floor"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/012.jpg": {
+        "semantic_residual": [
+            "computer screens",
+            "office chairs",
+            "tables",
+            "wall clock",
+            "whiteboard",
+            "windows",
+            "ceiling lights",
+            "teaching podium"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "chair fabric details",
+            "table surface grain",
+            "tile edge patterns",
+            "light fixture reflections",
+            "ceiling panel lines",
+            "wall texture",
+            "screen pixelation details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/013.jpg": {
+        "semantic_residual": [
+            "computers",
+            "desk chairs",
+            "whiteboard",
+            "video projector",
+            "classroom layout",
+            "students sitting",
+            "empty desks",
+            "windows with blinds"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "wood grain of tables",
+            "metal edges of chairs",
+            "reflective surface of screens",
+            "patterns on chair fabric",
+            "ceiling tile textures",
+            "shadows from overhead lights",
+            "subtle wall colors"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/014.jpg": {
+        "semantic_residual": [
+            "classroom layout",
+            "projector equipment",
+            "blackboard area",
+            "window presence",
+            "door details",
+            "furniture arrangement",
+            "wall hooks",
+            "visibility of chairs"
+        ],
+        "texture_residual": [
+            "ceiling tile patterns",
+            "wall paint texture",
+            "carpet floor pattern",
+            "table surface texture",
+            "detail of window frames",
+            "wood grain of furniture",
+            "lighting fixture reflections",
+            "subtle color variations"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/015.jpg": {
+        "semantic_residual": [
+            "detailed drawings on blackboard",
+            "fan on the floor",
+            "shelves with items",
+            "door handle",
+            "human figure on couch",
+            "classroom posters",
+            "distinct chairs",
+            "list on whiteboard"
+        ],
+        "texture_residual": [
+            "ceiling tile patterns",
+            "fabric texture on couch",
+            "wood grain on tables",
+            "smooth paint surface",
+            "chalkboard texture",
+            "floor carpet weave",
+            "reflections on surfaces",
+            "edge details on doors"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/016.jpg": {
+        "semantic_residual": [
+            "conference table",
+            "individual chairs",
+            "refrigerator",
+            "bookshelf",
+            "wall clock",
+            "whiteboard",
+            "window details",
+            "floor color"
+        ],
+        "texture_residual": [
+            "table surface grain",
+            "chair fabrics",
+            "ceiling tile pattern",
+            "wall texture",
+            "floor carpet texture",
+            "light reflection",
+            "window frame details",
+            "shadow details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/017.jpg": {
+        "semantic_residual": [
+            "filing cabinet handles",
+            "desk chair",
+            "computer monitor",
+            "wall art",
+            "door frame details",
+            "light fixture",
+            "meeting table",
+            "office documents"
+        ],
+        "texture_residual": [
+            "wall texture pattern",
+            "floor carpet texture",
+            "wood grain",
+            "chrome finish on cabinet",
+            "paper texture",
+            "shadows from furniture",
+            "ceiling tile texture",
+            "lighting gradient"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/018.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "office chairs",
+            "whiteboard text",
+            "room partitions",
+            "wall decorations",
+            "windows with daylight",
+            "printer and copier",
+            "door leading to hallway"
+        ],
+        "texture_residual": [
+            "carpet patterns",
+            "surface texture of desks",
+            "wall paint texture",
+            "lighting fixture details",
+            "chair upholstery patterns",
+            "reflections on glass",
+            "floor tiles",
+            "subtle shadows on surfaces"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/019.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "office furniture",
+            "whiteboard notes",
+            "doorway details",
+            "trash can",
+            "light fixtures",
+            "wall color variation",
+            "workspace layout"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "wood grain",
+            "plastic chair patterns",
+            "surface reflections",
+            "wall texture",
+            "glossy table surface",
+            "shadow details",
+            "glass reflections"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/020.jpg": {
+        "semantic_residual": [
+            "hallway door frames",
+            "bulletin board posters",
+            "window view",
+            "chairs in hallway",
+            "hallway lighting fixtures",
+            "reception desk details",
+            "corridor floor pattern",
+            "indoor plants"
+        ],
+        "texture_residual": [
+            "ceiling texture",
+            "wall paint texture",
+            "floor tile details",
+            "wood grain of door frames",
+            "reflective surface of reception desk",
+            "light fixture design",
+            "carpet texture",
+            "smoothness of wall surfaces"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/021.jpg": {
+        "semantic_residual": [
+            "classroom chairs",
+            "large chalkboard",
+            "windows",
+            "colorful wall decor",
+            "light fixtures",
+            "table edges",
+            "room corners",
+            "visible textures on walls"
+        ],
+        "texture_residual": [
+            "ceiling tile pattern",
+            "floor carpet texture",
+            "wood table grain",
+            "chair upholstery details",
+            "light fixture reflections",
+            "color variations on walls",
+            "dust details",
+            "shading on surfaces"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/022.jpg": {
+        "semantic_residual": [
+            "lab equipment",
+            "computer monitors",
+            "storage cabinets",
+            "poster board details",
+            "overhead lights",
+            "desk chairs",
+            "wall clock",
+            "various boxes"
+        ],
+        "texture_residual": [
+            "flooring texture",
+            "wall texture",
+            "cabinet finishes",
+            "labels on equipment",
+            "cable details",
+            "reflective surface highlights",
+            "paper textures",
+            "light fixture details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/023.jpg": {
+        "semantic_residual": [
+            "workstations",
+            "computer monitor",
+            "whiteboard",
+            "lab shelves",
+            "storage containers",
+            "chairs",
+            "equipment cabinets",
+            "desktop clutter"
+        ],
+        "texture_residual": [
+            "floor surface texture",
+            "wall detail",
+            "ceiling tile texture",
+            "metal surface",
+            "wood grain",
+            "plastic surface",
+            "reflective surfaces",
+            "cable textures"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/024.jpg": {
+        "semantic_residual": [
+            "laboratory equipment",
+            "clear storage jars",
+            "sink faucet",
+            "cabinet door handles",
+            "boxes stacked",
+            "gas cylinder",
+            "warning signs",
+            "countertop objects"
+        ],
+        "texture_residual": [
+            "countertop surface patterns",
+            "wall texture variations",
+            "floor material sheen",
+            "lighting fixture details",
+            "cupboard glass reflections",
+            "object shadows",
+            "color gradients",
+            "edge sharpness"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/025.jpg": {
+        "semantic_residual": [
+            "workstation equipment",
+            "computer monitor",
+            "laboratory tools",
+            "cabinet shelves",
+            "laboratory clock",
+            "chairs",
+            "loose papers",
+            "electrical wires"
+        ],
+        "texture_residual": [
+            "countertop surface",
+            "wall texture",
+            "shadow details",
+            "glass reflection",
+            "cabinet door texture",
+            "floor tile pattern",
+            "metal surface finish",
+            "lighting glare"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/026.jpg": {
+        "semantic_residual": [
+            "workstations",
+            "shelving units",
+            "computer monitors",
+            "office chair",
+            "laboratory equipment",
+            "light fixtures",
+            "wall-mounted chalkboard",
+            "boxes and crates"
+        ],
+        "texture_residual": [
+            "wood grain",
+            "office chair fabric",
+            "metal surfaces",
+            "plastic texture",
+            "floor surface details",
+            "lighting glare",
+            "shelves edge details",
+            "equipment labels"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/027.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "table surface details",
+            "wall clock",
+            "window view",
+            "door handle",
+            "edge of whiteboard",
+            "trash can",
+            "distinct ceiling panels"
+        ],
+        "texture_residual": [
+            "table surface texture",
+            "carpet pattern",
+            "wall paint texture",
+            "blue chair fabric",
+            "lighting fixture contours",
+            "baseboard edges",
+            "floor tile grains",
+            "window frame details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/028.jpg": {
+        "semantic_residual": [
+            "computer screens",
+            "office chairs",
+            "whiteboard",
+            "wall clock",
+            "shelves with items",
+            "door handle",
+            "human figures",
+            "cables on the floor"
+        ],
+        "texture_residual": [
+            "carpet patterns",
+            "wall surface details",
+            "desk surface texture",
+            "chair fabric texture",
+            "ceiling tile patterns",
+            "item labels on shelves",
+            "lighting fixture details",
+            "shadows on the floor"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/029.jpg": {
+        "semantic_residual": [
+            "computer desks",
+            "office chairs",
+            "whiteboards",
+            "windows",
+            "classroom objects",
+            "projector",
+            "trash bin",
+            "student presence",
+            "wall posters",
+            "floor details",
+            "door",
+            "ceiling fixtures"
+        ],
+        "texture_residual": [
+            "carpet patterns",
+            "wall texture",
+            "table surface finish",
+            "chair fabric detail",
+            "lighting reflections",
+            "glass window clarity",
+            "surface shadows",
+            "fiber texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/030.jpg": {
+        "semantic_residual": [
+            "office desk",
+            "computer monitors",
+            "wall art",
+            "water cooler",
+            "bookshelf",
+            "wooden chairs",
+            "exit sign",
+            "reception counter"
+        ],
+        "texture_residual": [
+            "ceiling tile pattern",
+            "carpet texture",
+            "soft couch fabric",
+            "wooden table surface",
+            "glass door reflections",
+            "paper texture",
+            "wall paint texture",
+            "lighting fixture details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/031.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "keyboard",
+            "desk chairs",
+            "wall clock",
+            "whiteboard notes",
+            "office furniture",
+            "blue chairs",
+            "storage cabinets"
+        ],
+        "texture_residual": [
+            "floor carpet pattern",
+            "wood grain of furniture",
+            "reflective surfaces",
+            "lighting glare",
+            "fabric texture of chairs",
+            "color variation on walls",
+            "edge details of desks",
+            "surface shine on monitors"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/032.jpg": {
+        "semantic_residual": [
+            "classroom desks",
+            "black chalkboard",
+            "project overhead",
+            "windows view",
+            "wall clock",
+            "classroom chairs",
+            "computer equipment",
+            "door details"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "ceiling light patterns",
+            "desk surface grain",
+            "wall paint texture",
+            "window reflections",
+            "whiteboard marker stains",
+            "chair upholstery",
+            "edge sharpness"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/033.jpg": {
+        "semantic_residual": [
+            "computers",
+            "office chairs",
+            "whiteboard",
+            "wall art",
+            "projector",
+            "bean bag chairs",
+            "bookshelves",
+            "classroom tables"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "wood surface patterns",
+            "ceiling tile texture",
+            "monitor reflections",
+            "keyboard keys",
+            "shadows on floor",
+            "wall color variation",
+            "fabric textures"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/034.jpg": {
+        "semantic_residual": [
+            "entrance doors",
+            "bulletin boards",
+            "wall posters",
+            "ceiling lights",
+            "trash can",
+            "display case",
+            "floor tiles",
+            "outside view"
+        ],
+        "texture_residual": [
+            "brick wall texture",
+            "floor carpet texture",
+            "ceiling panel details",
+            "glass window reflections",
+            "poster text details",
+            "edge of trash can",
+            "shadow details",
+            "light reflections on walls"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/035.jpg": {
+        "semantic_residual": [
+            "distant windows",
+            "computer monitors",
+            "floor plant",
+            "wall charts",
+            "whiteboard writing",
+            "clock hands",
+            "table arrangement",
+            "cushion details",
+            "bookshelf items",
+            "classroom posters"
+        ],
+        "texture_residual": [
+            "wood grain flooring",
+            "chair mesh pattern",
+            "ceiling texture",
+            "window glass reflections",
+            "table surface sheen",
+            "fabric soft texture",
+            "light fixture glare",
+            "whiteboard marker ghosting"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/036.jpg": {
+        "semantic_residual": [
+            "detailed wall art",
+            "clear table items",
+            "stack of books",
+            "visible door frame",
+            "window reflections",
+            "chair design",
+            "color-coded documents",
+            "room entrance"
+        ],
+        "texture_residual": [
+            "table surface smoothness",
+            "wall paint texture",
+            "carpet pattern",
+            "lighting fixture details",
+            "shadow gradients",
+            "wood grain on furniture",
+            "fabric weave on chairs",
+            "ceiling texture patterns"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/037.jpg": {
+        "semantic_residual": [
+            "classroom furniture",
+            "computer monitors",
+            "blackboards",
+            "wall posters",
+            "windows",
+            "ceiling lights",
+            "study tables",
+            "office chairs",
+            "floor texture",
+            "exit sign",
+            "clock"
+        ],
+        "texture_residual": [
+            "table surface texture",
+            "carpet pattern",
+            "wall paint texture",
+            "ceiling tile details",
+            "light reflections",
+            "blackboard writing",
+            "chair fabric patterns",
+            "window glass clarity",
+            "electrical outlet texture",
+            "document details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/038.jpg": {
+        "semantic_residual": [
+            "lab equipment",
+            "sand table",
+            "blackboards",
+            "ceiling lights",
+            "computers",
+            "drainage area",
+            "classroom furniture",
+            "water tank"
+        ],
+        "texture_residual": [
+            "floor surface texture",
+            "wood grain on tables",
+            "chalkboard writing",
+            "light reflections on surfaces",
+            "wall texture details",
+            "ceiling tile patterns",
+            "edge sharpness",
+            "color variations in materials"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/039.jpg": {
+        "semantic_residual": [
+            "ceiling light fixtures",
+            "classroom clock",
+            "blackboard corner",
+            "projector on ceiling",
+            "empty chairs",
+            "whiteboard surfaces",
+            "classroom partition",
+            "instructor's desk"
+        ],
+        "texture_residual": [
+            "ceiling tile patterns",
+            "floor carpet texture",
+            "wood table grains",
+            "black chair fabric",
+            "wall paint details",
+            "paper sheets texture",
+            "light reflection on surfaces",
+            "shadows of objects"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/040.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "office chairs",
+            "windows",
+            "table edges",
+            "door frame",
+            "wall-mounted projector",
+            "ceiling lights",
+            "whiteboards"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "table surface pattern",
+            "ceiling grid design",
+            "edge shadowing",
+            "monitor cables",
+            "wall texture",
+            "reflections on surfaces",
+            "light diffusion"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/041.jpg": {
+        "semantic_residual": [
+            "distant landforms",
+            "reflective water surfaces",
+            "sunset colors",
+            "rocky terrain details",
+            "vegetation patches",
+            "winding paths",
+            "horizon line",
+            "cloud formations"
+        ],
+        "texture_residual": [
+            "rock surface patterns",
+            "water ripples",
+            "sunray reflections",
+            "cloud textures",
+            "color gradients",
+            "moss-like growth",
+            "soil textures",
+            "fine detail of chasms",
+            "light scatter effects",
+            "atmospheric haze"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/042.jpg": {
+        "semantic_residual": [
+            "blackboard diagrams",
+            "classroom desks",
+            "chalkboard details",
+            "classroom chairs",
+            "sunlight through windows",
+            "water tank features",
+            "science equipment",
+            "sand table setup"
+        ],
+        "texture_residual": [
+            "ceiling texture",
+            "floor tile pattern",
+            "wooden surface grain",
+            "wall surface texture",
+            "light reflections",
+            "glass panel details",
+            "edge sharpness on furniture",
+            "paint texture on walls"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/043.jpg": {
+        "semantic_residual": [
+            "ceiling lights",
+            "classroom clock",
+            "blackboard details",
+            "instructor's desk",
+            "chair arrangements",
+            "student materials",
+            "wall-mounted speakers",
+            "classroom door"
+        ],
+        "texture_residual": [
+            "floor carpeting pattern",
+            "wood grain on tables",
+            "ceiling tile texture",
+            "paper textures",
+            "subtle wall paint variations",
+            "ceiling joint details",
+            "chair fabric texture",
+            "lighting reflection details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/044.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "empty chairs",
+            "conference tables",
+            "wall clock",
+            "windows with blinds",
+            "door frame",
+            "projection equipment",
+            "textured flooring"
+        ],
+        "texture_residual": [
+            "tabletop patterns",
+            "chair fabric texture",
+            "ceiling panel details",
+            "floor carpet texture",
+            "lighting fixture details",
+            "wall surface texture",
+            "shadow details",
+            "light reflection on surfaces"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/045.jpg": {
+        "semantic_residual": [
+            "laboratory equipment",
+            "storage cabinets",
+            "workbenches",
+            "computer desks",
+            "safety cabinets",
+            "stools",
+            "power outlets",
+            "wall signage"
+        ],
+        "texture_residual": [
+            "wood grain patterns",
+            "metal surfaces",
+            "shadows on the floor",
+            "glossy finishes",
+            "reflective surfaces",
+            "fabric textures",
+            "cable detritus",
+            "floor color variations"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/046.jpg": {
+        "semantic_residual": [
+            "laboratory benches",
+            "whiteboards",
+            "undercounter cabinets",
+            "laboratory stools",
+            "scientific equipment",
+            "ventilation ducts",
+            "wall cabinets",
+            "refrigerators"
+        ],
+        "texture_residual": [
+            "black countertop surface",
+            "smooth floor texture",
+            "wall paint pattern",
+            "ceiling panel details",
+            "light fixture reflections",
+            "lab equipment surfaces",
+            "wood grain of cabinets",
+            "metal edges of equipment"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/047.jpg": {
+        "semantic_residual": [
+            "window view",
+            "seating area",
+            "kitchen entrance",
+            "wall decorations",
+            "corridor entrance",
+            "table settings",
+            "trash can",
+            "ceiling lights"
+        ],
+        "texture_residual": [
+            "carpet grain",
+            "wall surface texture",
+            "chair patterns",
+            "table edge details",
+            "light reflections",
+            "window frame texture",
+            "floor polishing marks",
+            "ceiling tile texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/048.jpg": {
+        "semantic_residual": [
+            "office furniture",
+            "artwork on walls",
+            "reception desk",
+            "meeting room door",
+            "indoor plants",
+            "corridor with doors",
+            "office equipment",
+            "chairs around table"
+        ],
+        "texture_residual": [
+            "ceiling tile patterns",
+            "carpet texture",
+            "wall color gradients",
+            "edge details on furniture",
+            "poster graphics",
+            "window view",
+            "door handle details",
+            "light fixture reflections"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/049.jpg": {
+        "semantic_residual": [
+            "woodworking tools",
+            "storage cabinets",
+            "wooden crates",
+            "workbenches",
+            "large orange curtain",
+            "exercise equipment",
+            "light fixtures",
+            "doors"
+        ],
+        "texture_residual": [
+            "concrete floor texture",
+            "wood grain patterns",
+            "surface reflections",
+            "metallic sheen",
+            "fabric texture",
+            "paint detail",
+            "shadow gradients",
+            "pipe details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/050.jpg": {
+        "semantic_residual": [
+            "distant building windows",
+            "various cars",
+            "path edges",
+            "tree branches",
+            "flower bushes",
+            "light poles",
+            "building entrances",
+            "grassy areas"
+        ],
+        "texture_residual": [
+            "concrete surface patterns",
+            "leaf textures",
+            "shadow details",
+            "building material textures",
+            "small surface imperfections",
+            "sky color shades",
+            "reflections on glass",
+            "highlight details on leaves"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/051.jpg": {
+        "semantic_residual": [
+            "water fountain",
+            "wall-mounted displays",
+            "hallway signage",
+            "entrance door details",
+            "room doors",
+            "fish wall art",
+            "floor mats",
+            "large windows"
+        ],
+        "texture_residual": [
+            "ceiling panel texture",
+            "floor tile patterns",
+            "wall paint gradient",
+            "carpet texture",
+            "shadows from overhead lights",
+            "reflections in glass",
+            "edge details",
+            "grout lines"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/052.jpg": {
+        "semantic_residual": [
+            "dining chairs",
+            "artwork on walls",
+            "table surfaces",
+            "window frames",
+            "floor patterns",
+            "potted plants",
+            "doorway details",
             "lighting fixtures"
         ],
         "texture_residual": [
+            "ceiling texture",
+            "chair fabric patterns",
+            "table edge details",
+            "window reflections",
+            "floor carpet texture",
+            "wall color variations",
+            "surface gloss",
+            "window sill features"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/053.jpg": {
+        "semantic_residual": [
+            "office furniture",
+            "desk computers",
+            "wall art",
+            "door signage",
+            "potted plants",
+            "window views",
+            "floor carpet patterns",
+            "storage cabinets"
+        ],
+        "texture_residual": [
+            "ceiling tile texture",
+            "carpet fiber details",
+            "wood grain on furniture",
+            "paper document textures",
+            "polished surface reflections",
+            "light fixture details",
+            "wall paint patterns",
+            "soft shadows on floor"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/054.jpg": {
+        "semantic_residual": [
+            "office furniture",
+            "desk",
+            "window view",
+            "whiteboard",
+            "garbage bin",
+            "wall texture",
+            "chair legs",
+            "bookshelf"
+        ],
+        "texture_residual": [
+            "ceiling tiles",
+            "carpet fibers",
+            "wood surface",
+            "glass reflections",
+            "paper texture",
+            "shadow patterns",
+            "color gradients",
+            "fabric weave"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/055.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "classroom chairs",
+            "tables with objects",
+            "whiteboard",
+            "blackboard",
+            "wall posters",
+            "trash bin",
+            "projector"
+        ],
+        "texture_residual": [
+            "table surface texture",
+            "carpet pattern",
+            "ceiling texture",
+            "light fixture reflections",
+            "shadows on the floor",
+            "paper texture",
+            "object details",
+            "wall surface irregularities"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/056.jpg": {
+        "semantic_residual": [
+            "table with papers",
+            "classroom whiteboards",
+            "computer monitors",
+            "office chairs",
+            "wall-mounted screens",
+            "classroom door",
+            "fire extinguisher",
+            "wall shelves"
+        ],
+        "texture_residual": [
+            "ceiling texture",
+            "floor texture",
+            "wood grain of tables",
+            "screen reflection",
+            "keyboard keys",
+            "chair mesh pattern",
+            "wall paint texture",
+            "floor tile pattern"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/057.jpg": {
+        "semantic_residual": [
+            "tables",
+            "chairs",
+            "window view",
+            "potted plants",
+            "ceiling panels",
+            "wall decorations",
+            "corridor entrance",
+            "signage"
+        ],
+        "texture_residual": [
+            "table surface grain",
+            "carpet texture",
+            "wall material pattern",
+            "glass reflections",
+            "lighting fixtures details",
+            "plant leaf textures",
+            "shadow details",
+            "ambient light variations"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/058.jpg": {
+        "semantic_residual": [
+            "office furniture shapes",
+            "wall art presence",
+            "potted plant details",
+            "human figures",
+            "desk equipment outlines",
+            "doorway texture",
+            "floor patterns",
+            "light fixture variations"
+        ],
+        "texture_residual": [
+            "carpet fibers",
+            "wall color nuances",
+            "plants leaf details",
+            "metallic surface sheen",
+            "floor tile texture",
+            "window reflections",
+            "lighting variations",
+            "cabinet surface texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/059.jpg": {
+        "semantic_residual": [
+            "dining tables",
+            "chairs around tables",
+            "wall decorations",
+            "colorful mural",
+            "bookshelf with books",
+            "reception desk",
+            "potted plants",
+            "kitchen cabinetry"
+        ],
+        "texture_residual": [
+            "table surface detail",
+            "chair fabric pattern",
+            "wall texture",
+            "floor material texture",
+            "book spines",
+            "lighting fixture reflections",
+            "mural color variations",
+            "plant leaf textures"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/060.jpg": {
+        "semantic_residual": [
+            "lab equipment",
+            "laboratory shelves",
+            "chairs",
+            "countertops",
+            "sinks",
+            "fluorescent lights",
+            "cabinets",
+            "walls",
+            "doorways",
+            "storage containers"
+        ],
+        "texture_residual": [
+            "countertop surface",
+            "chair fabric pattern",
+            "wall texture",
+            "floor texture",
+            "cabinet wood grain",
+            "equipment labels",
+            "light reflections",
+            "tool shine"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/061.jpg": {
+        "semantic_residual": [
+            "flower pots",
+            "market stalls",
+            "distant pedestrians",
+            "signboard text",
+            "hanging plants",
+            "shop awnings",
+            "storage boxes",
+            "ground textures"
+        ],
+        "texture_residual": [
+            "leaf surface details",
+            "flower petal textures",
+            "pavement cracks",
+            "market stand shadows",
+            "plant stem patterns",
+            "textile patterns",
+            "color transitions in foliage",
+            "metal surface reflections"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/062.jpg": {
+        "semantic_residual": [
+            "historic brick buildings",
+            "river reflections",
+            "tree canopies",
+            "street lights",
+            "people walking",
+            "boat on the river",
+            "building facades",
+            "stone pathway"
+        ],
+        "texture_residual": [
+            "brick surface details",
+            "water surface ripples",
+            "leaf patterns",
+            "stone texture",
+            "pavement texture",
+            "reflected sunlight",
+            "grass textures",
+            "window glass reflections"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/063.jpg": {
+        "semantic_residual": [
+            "stone arch details",
+            "entrance door",
+            "iron gate",
+            "distant building outline",
+            "pathway edges",
+            "tree trunk textures",
+            "wall foliage",
+            "gravel path sections"
+        ],
+        "texture_residual": [
+            "bark texture",
+            "stone surface patterns",
+            "leaf details",
+            "dirt granules",
+            "gate rust",
+            "tree branch details",
+            "wall shadow contrast",
+            "sky color variations"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/064.jpg": {
+        "semantic_residual": [
+            "distant castle tower",
+            "flowing river",
+            "tree variations",
+            "bridge railing details",
+            "nearby rocks",
+            "varied plant textures",
+            "background mountain contours",
+            "lush greenery"
+        ],
+        "texture_residual": [
+            "wood grain patterns",
+            "water surface reflections",
+            "grass leaf textures",
+            "leaf shadow details",
+            "stone surface textures",
+            "bark patterns",
+            "sky color gradient",
+            "wooden railing imperfections"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/065.jpg": {
+        "semantic_residual": [
+            "dilapidated building details",
+            "distant castle silhouette",
+            "gravel road edges",
+            "nearby vegetation patches",
+            "tree line contours",
+            "fence posts",
+            "road sign shapes",
+            "human figures"
+        ],
+        "texture_residual": [
+            "grass textures",
+            "dirt road patterns",
+            "stone wall grains",
+            "vegetation color variations",
+            "roof shingles",
+            "soft cloud gradients",
+            "distant building textures",
+            "ground surface irregularities"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/066.jpg": {
+        "semantic_residual": [
+            "building windows",
+            "stone stairs",
+            "tree trunks",
+            "distant hillside",
+            "ground vegetation",
+            "structural columns",
+            "entrance archway",
+            "landscape contours"
+        ],
+        "texture_residual": [
+            "tree bark texture",
+            "ground texture variations",
+            "sunlight reflection",
+            "stone wall patterns",
+            "leaf edges",
+            "rocky surface details",
+            "sky gradient",
+            "dirt path texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/067.jpg": {
+        "semantic_residual": [
+            "distant mountains",
+            "pathway texture",
+            "stone steps",
+            "tree canopy",
+            "shrubbery details",
+            "rock formations",
+            "plant shapes",
+            "sky details"
+        ],
+        "texture_residual": [
+            "ground texture variations",
+            "rock surface details",
+            "leaf textures",
+            "grass patterns",
+            "stone edge details",
+            "bark textures",
+            "color gradients in sky",
+            "shadow details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/068.jpg": {
+        "semantic_residual": [
+            "distant house",
+            "stone pathway",
+            "cactus plants",
+            "various shrubs",
+            "trees with distinct shapes",
+            "mountain outlines",
+            "clear sky",
+            "horizon line"
+        ],
+        "texture_residual": [
+            "rock surface details",
+            "ground texture",
+            "tree bark patterns",
+            "leaf veins",
+            "stone color variations",
+            "gradient of the sky",
+            "shadows on ground",
+            "soft green foliage texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/069.jpg": {
+        "semantic_residual": [
+            "distinct tree leaves",
+            "visible rock formations",
+            "open sky details",
+            "path edges",
+            "distant mountains",
+            "sunlight reflections",
+            "shadow patterns",
+            "varied vegetation"
+        ],
+        "texture_residual": [
+            "rough stone surface",
+            "detailed gravel texture",
+            "smooth dirt patterns",
+            "vibrant foliage texture",
+            "subtle color gradients",
+            "rock grain details",
+            "light play on surfaces",
+            "intricate path layout"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/070.jpg": {
+        "semantic_residual": [
+            "rock formations",
+            "archway structure",
+            "various shrubs",
+            "distant vegetation",
+            "clear water reflections",
+            "sandy path details",
+            "hillside contours",
+            "sky with cloud details"
+        ],
+        "texture_residual": [
+            "rough rock texture",
+            "smooth water surface",
+            "fine grass blades",
+            "sandy surface granules",
+            "bark texture on trees",
+            "color variations in foliage",
+            "shadow patterns",
+            "subtle color gradients"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/071.jpg": {
+        "semantic_residual": [
+            "shower fixtures",
+            "bidet design",
+            "doorway features",
+            "wall art",
+            "window detail",
+            "towel arrangement",
+            "floor pattern",
+            "light fixtures"
+        ],
+        "texture_residual": [
+            "tile surface texture",
+            "wall plaster finish",
+            "wood grain",
+            "reflection in glass",
+            "chrome surface shine",
+            "fabric texture of towels",
+            "floor color depth",
+            "ceiling pattern"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/072.jpg": {
+        "semantic_residual": [
+            "pathway junction",
+            "tree silhouettes",
+            "rocky landscape",
+            "surrounding foliage",
+            "vertical tree trunks",
+            "sky visibility",
+            "path texture",
+            "distant mountain outline"
+        ],
+        "texture_residual": [
+            "leaf textures",
+            "soil granularity",
+            "rocky surface detail",
+            "tree bark patterns",
+            "shadows on ground",
+            "light gradient in sky",
+            "variations in green foliage",
+            "detailed shrub foliage"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/073.jpg": {
+        "semantic_residual": [
+            "distant mountain outlines",
+            "detailed tree foliage",
+            "distinct rock formations",
+            "ground texture variations",
+            "small shrubs",
+            "clear sky gradients",
+            "uneven path surfaces",
+            "scattered pebbles"
+        ],
+        "texture_residual": [
+            "tree bark texture",
+            "grass blade details",
+            "dirt clump patterns",
+            "cloud edges",
+            "stone surface textures",
+            "grass color shifts",
+            "light shadow contrasts",
+            "tree trunk details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/074.jpg": {
+        "semantic_residual": [
+            "distant mountain peak",
+            "individual tree outlines",
+            "varied vegetation types",
+            "sun glare",
+            "grass clumps",
+            "shadow patterns",
+            "sky cloud shapes",
+            "foreground rocks"
+        ],
+        "texture_residual": [
+            "grass blade textures",
+            "tree bark details",
+            "foliage patterns",
+            "light reflections",
+            "rocky surface textures",
+            "subtle shadow gradients",
+            "distant foliage detail",
+            "sky color variation"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/075.jpg": {
+        "semantic_residual": [
+            "distant hills",
+            "wildflower patches",
+            "electric poles",
+            "tree outlines",
+            "sky cloud patterns",
+            "pathway details",
+            "shrub varieties",
+            "shadowed areas"
+        ],
+        "texture_residual": [
+            "grass blade texture",
+            "dirt path texture",
+            "leaf vein details",
+            "cloud texture variation",
+            "tree bark texture",
+            "sunlight reflections",
+            "soil granularity",
+            "flower petal details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/076.jpg": {
+        "semantic_residual": [
+            "detailed rocks",
+            "flowing river",
+            "distinct tree shapes",
+            "varied plant species",
+            "visible shadows",
+            "clear foreground elements",
+            "variations in foliage density",
+            "human presence"
+        ],
+        "texture_residual": [
+            "rock surface textures",
+            "leaf patterns",
+            "water reflections",
+            "detailed grass blades",
+            "bark textures",
+            "stone color variations",
+            "fine roots",
+            "subtle gradients in foliage"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/077.jpg": {
+        "semantic_residual": [
+            "distant hills",
+            "arches and columns",
+            "building windows",
+            "pavement patterns",
+            "trees on hill",
+            "horizon line",
+            "door details",
+            "wall textures"
+        ],
+        "texture_residual": [
+            "brick surface texture",
+            "tile patterns",
+            "stone textures",
+            "cloud detail",
+            "vegetation textures",
+            "roof material",
+            "balcony details",
+            "light and shadow gradients"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/078.jpg": {
+        "semantic_residual": [
+            "building walls",
+            "stone pathways",
+            "tree trunks",
+            "garden shrubs",
+            "distant architectural ruins",
+            "open space areas",
+            "ivy-covered surfaces",
+            "horizon line"
+        ],
+        "texture_residual": [
+            "sand grain texture",
+            "leaf vein patterns",
+            "bark texture",
+            "stone surface details",
+            "wall plaster texture",
+            "grass blade details",
+            "sky cloud definition",
+            "water surface reflections"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/079.jpg": {
+        "semantic_residual": [
+            "hiking trail markers",
+            "tree shadows",
+            "distant mountains",
+            "individual hikers' gear",
+            "surrounding vegetation",
+            "hiking poles",
+            "details of clothing",
+            "pathways through foliage"
+        ],
+        "texture_residual": [
+            "dirt path texture",
+            "leaf patterns",
+            "bark texture on trees",
+            "rocky surface details",
+            "shadow gradients",
+            "fabric weaves",
+            "colors of clothing",
+            "green foliage texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/080.jpg": {
+        "semantic_residual": [
+            "seating area furniture",
+            "wall-mounted plaques",
+            "hallway doors",
+            "clock on the wall",
+            "elevator doors",
+            "windows and reflections",
+            "reception desk",
+            "bulletin board"
+        ],
+        "texture_residual": [
+            "floor tile detail",
+            "carpet pattern",
+            "wall brick texture",
+            "ceiling light reflections",
+            "wood grain surface",
+            "paint color variations",
+            "surface shadow details",
+            "glossy finish on furniture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/081.jpg": {
+        "semantic_residual": [
+            "auditorium seats",
+            "ceiling lights",
+            "presentation screen",
+            "back wall texture",
+            "classroom layout",
+            "wooden paneling",
+            "whiteboard outlines",
+            "column details"
+        ],
+        "texture_residual": [
+            "wood grain texture",
+            "fabric chair texture",
+            "concrete floor details",
+            "ceiling pattern",
+            "light reflections",
+            "shadow details",
+            "wall brick texture",
+            "table surface pattern"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/082.jpg": {
+        "semantic_residual": [
+            "classroom furniture arrangement",
+            "seating colors",
+            "projection screen",
+            "classroom blackboard",
+            "wall-mounted clock",
+            "patterned floor tiles",
+            "door handle",
+            "wall texture details"
+        ],
+        "texture_residual": [
+            "tabletop surface texture",
+            "plastic chair finish",
+            "light fixture reflections",
+            "floor glossiness",
+            "wall paint variation",
+            "ceiling texture",
+            "light beam diffusion",
+            "shadow details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/083.jpg": {
+        "semantic_residual": [
+            "classroom chairs",
+            "wall clock",
+            "classroom blackboard",
+            "projector",
+            "teacher's desk",
+            "windows",
+            "empty backpacks",
+            "floor patterns"
+        ],
+        "texture_residual": [
+            "table surface patterns",
+            "wall texture details",
+            "ceiling texture",
+            "chair fabric patterns",
+            "floor tile texture",
+            "light reflection on surfaces",
+            "edge sharpness",
+            "color variations in chairs"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/084.jpg": {
+        "semantic_residual": [
+            "computer monitors",
+            "office chairs",
+            "classroom desks",
+            "ceiling lights",
+            "wall posters",
+            "windows",
+            "whiteboard",
+            "door frame"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "desk surface grain",
+            "ceiling panel details",
+            "wall texture",
+            "keyboard details",
+            "light reflection patterns",
+            "fabric texture",
+            "color variation in walls"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/085.jpg": {
+        "semantic_residual": [
+            "exit sign",
+            "room doors",
+            "wall decorations",
+            "reception desk",
+            "framed certificates",
+            "corridor visibility",
+            "brochure display",
+            "lighting fixtures"
+        ],
+        "texture_residual": [
+            "carpet pattern",
+            "wall paint texture",
+            "wood grain",
+            "surface reflections",
+            "lighting shadows",
+            "chair upholstery",
+            "ceiling texture",
+            "floor tile pattern"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/086.jpg": {
+        "semantic_residual": [
+            "office furniture",
+            "decorative items",
+            "water cooler",
+            "computer monitors",
+            "wall art",
+            "file cabinets",
+            "doorways",
+            "ceiling fixtures"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "wood paneling shine",
+            "surface reflections",
+            "wall paint details",
+            "fabric patterns",
+            "edge sharpness",
+            "lighting glow",
+            "shadows on floor"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/087.jpg": {
+        "semantic_residual": [
+            "kitchen appliances",
+            "green bowl",
+            "office paper stacks",
+            "black refrigerator",
+            "wood cabinet details",
+            "wall clock",
+            "door to hallway",
+            "empty chairs"
+        ],
+        "texture_residual": [
+            "wood grain patterns",
+            "counter surface texture",
+            "ceiling panel details",
+            "floor wood pattern",
+            "edges of appliances",
+            "reflections on surfaces",
+            "tile patterns",
+            "subtle wall textures"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/088.jpg": {
+        "semantic_residual": [
+            "black leather sofa",
+            "lamp on table",
+            "bookshelf with books",
+            "framed artwork",
+            "brown patterned wall",
+            "small round table",
+            "doorway to another room",
+            "TV on wall"
+        ],
+        "texture_residual": [
+            "floor wood grain",
+            "wall pattern texture",
+            "fabric texture of sofa",
+            "light reflections on surfaces",
+            "ceiling tile grid",
+            "lamp shade texture",
+            "book spines detail",
+            "woven chair fabric"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/089.jpg": {
+        "semantic_residual": [
+            "blackboard",
+            "filing cabinets",
+            "computer monitors",
+            "desk chairs",
+            "office tools",
+            "documentation on desks",
+            "wall-mounted notices",
+            "storage boxes"
+        ],
+        "texture_residual": [
+            "table surface grain",
+            "light fixture reflections",
+            "wall paint texture",
+            "floor details",
+            "plastic chair patterns",
+            "paper texture",
+            "computer cable details",
+            "ceiling texture"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/090.jpg": {
+        "semantic_residual": [
+            "computer screens",
+            "3D printers",
+            "office furniture",
+            "wall art",
+            "people interacting",
+            "display boards",
+            "storage shelves",
+            "laboratory equipment"
+        ],
+        "texture_residual": [
+            "wood grain texture",
+            "carpet pattern",
+            "metal surface shine",
+            "fabric texture",
+            "ceiling pattern",
+            "paper texture",
+            "light reflection",
+            "machinery details"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/091.jpg": {
+        "semantic_residual": [
+            "office cubicles",
+            "computer monitors",
+            "desk chairs",
+            "wall posters",
+            "red floor tiles",
+            "doorway access",
+            "natural light from windows",
+            "ceiling lights"
+        ],
+        "texture_residual": [
+            "carpet texture",
+            "desk surface patterns",
+            "wall texture",
+            "reflections on surfaces",
+            "ceiling grid detail",
+            "shadows on the floor",
+            "light gradient in windows",
+            "chair upholstery pattern"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/092.jpg": {
+        "semantic_residual": [
+            "bedside lamp",
+            "decorative chair",
+            "window curtains",
+            "framed wall art",
+            "cabinet doors",
+            "bedside table",
+            "light switch",
+            "wall molding"
+        ],
+        "texture_residual": [
+            "wood grain patterns",
+            "fabric texture of blanket",
+            "smooth wall finish",
+            "reflective surface of lamp",
+            "floorboard texture",
+            "intricate patterns on upholstery",
+            "window frame details",
+            "color gradient of wall paint"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/093.jpg": {
+        "semantic_residual": [
+            "château architecture",
+            "path arrangement",
+            "garden layout",
+            "fountain presence",
+            "trees in background",
+            "surrounding landscape features",
+            "sky visibility",
+            "seasonal foliage changes"
+        ],
+        "texture_residual": [
+            "stone wall texture",
+            "fine grass detail",
+            "hedge patterns",
+            "pathway gravel texture",
+            "distant tree bark",
+            "flowerbed outlines",
+            "subtle light variations",
+            "atmospheric depth"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/094.jpg": {
+        "semantic_residual": [
+            "patio furniture",
+            "potted plants",
+            "clear glass railings",
+            "chimney structure",
+            "hills in background",
+            "distant water view",
+            "human figure",
+            "decorative table items"
+        ],
+        "texture_residual": [
+            "stone floor patterns",
+            "surface reflections",
+            "plant leaf details",
+            "wood texture on furniture",
+            "sky color variations",
+            "shadow patterns",
+            "light contrast on walls",
+            "texture of the patio railing"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/095.jpg": {
+        "semantic_residual": [
+            "dining tables",
+            "candles",
+            "people silhouettes",
+            "presentation screen",
+            "window details",
+            "ceiling architecture",
+            "decorative elements",
+            "beverage glasses"
+        ],
+        "texture_residual": [
+            "tablecloth patterns",
+            "wood floor texture",
+            "metal chair surfaces",
+            "skin textures",
+            "food plate details",
+            "light reflections",
+            "shadow gradients",
+            "fabric textures"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/096.jpg": {
+        "semantic_residual": [
+            "dressing table reflection",
+            "window view",
+            "chair details",
+            "bed pillow shapes",
+            "nightstand items",
+            "wall art",
+            "lamp bases",
+            "room entrance features"
+        ],
+        "texture_residual": [
+            "wallpaper pattern",
+            "carpet weave",
+            "bedding fabric texture",
+            "lamp light glow",
+            "wood grain",
+            "chair fabric pattern",
+            "mirror surface finish",
+            "floor transition edge"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/097.jpg": {
+        "semantic_residual": [
+            "beach furniture",
+            "distant figures",
+            "seagulls in flight",
+            "trash bins",
+            "beach grass",
+            "wave patterns",
+            "shoreline details",
+            "distant trees"
+        ],
+        "texture_residual": [
+            "sand granularity",
+            "water surface reflections",
+            "sky color transitions",
+            "grass blade details",
+            "foam edges",
+            "texture of clouds",
+            "wood grain of bins",
+            "ripples on water"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/098.jpg": {
+        "semantic_residual": [
+            "bar counter",
+            "glassware reflections",
+            "bottle labels",
+            "light fixtures",
+            "bartender's clothing",
+            "adjacent patrons",
+            "fruit garnishes",
+            "wall textures"
+        ],
+        "texture_residual": [
+            "metal bar surface",
             "glass reflections",
             "wood grain patterns",
-            "liquid surface texture",
-            "light glow variation",
-            "wall patterns",
-            "countertop finish",
-            "fabric texture",
-            "ambient lighting gradation"
+            "contrasting light and shadow",
+            "fabric patterns",
+            "drink condensation",
+            "beverage bubbles",
+            "ambient lighting effects"
+        ]
+    },
+    "/data/xyy/Lucas/PanULIC/dataset/test/099.jpg": {
+        "semantic_residual": [
+            "distant rock formations",
+            "detailed foliage",
+            "sandy riverbank",
+            "individual tree trunks",
+            "scattered boulders",
+            "riverbed features",
+            "lush undergrowth",
+            "clear sky",
+            "varied tree species",
+            "sunlight filters through leaves"
+        ],
+        "texture_residual": [
+            "rough stone surfaces",
+            "leaf patterns",
+            "ground texture variations",
+            "tree bark details",
+            "ripple patterns in water",
+            "moss texture on rocks",
+            "smooth gravel",
+            "subtle color variations in plants",
+            "shadows under trees",
+            "highlights on leaves"
         ]
     }
 }
